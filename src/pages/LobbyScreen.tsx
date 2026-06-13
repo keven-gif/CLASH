@@ -25,7 +25,7 @@ interface LobbyPlayer {
 export default function LobbyScreen() {
   const navigate = useNavigate();
   const { user, signOut, loading: authLoading } = useAuth();
-  const { selectCharacter, setOnlineMode, setIsHost, setMatchOpponent, setMatchChannel, user: storeUser } = useGameStore();
+  const { selectCharacter, setOnlineMode, setIsHost, setMatchOpponent, setMatchChannel, setUser, user: storeUser } = useGameStore();
 
   // MatchmakingManager & WebSocket
   const mmRef = useRef<MatchmakingManager | null>(null);
@@ -68,7 +68,7 @@ export default function LobbyScreen() {
         playerId: opponent.opponent.id,
         username: opponent.opponent.username,
         character: 'swordsman',
-        ready: true,
+        ready: false,
         isHost: !opponent.isHost,
       };
       setLobbyPlayers([me, opp]);
@@ -108,6 +108,8 @@ export default function LobbyScreen() {
     mm.onMatchFound((match: MatchFound) => {
       setOpponent(match);
       if (timerRef.current) clearInterval(timerRef.current);
+      // Save auth user to game store so CharacterSelect can access it
+      if (user) setUser(user);
 
       // Countdown 3-2-1 before navigating to game
       let c = 3;

@@ -65,8 +65,18 @@ export const api = {
   },
 
   async markMatched(playerId: string, opponentId: string) {
+    // Only update own row — avoids RLS cross-user update restrictions
     await supabase.from('match_queue').update({ status: 'matched', matched_with: opponentId }).eq('player_id', playerId);
-    await supabase.from('match_queue').update({ status: 'matched', matched_with: playerId }).eq('player_id', opponentId);
+  },
+
+  async findWhoMatchedMe(myId: string) {
+    const { data } = await supabase
+      .from('match_queue')
+      .select('*')
+      .eq('status', 'matched')
+      .eq('matched_with', myId)
+      .limit(1);
+    return data?.[0] ?? null;
   },
 
   async submitAnswer(playerId: string, answer: string) {

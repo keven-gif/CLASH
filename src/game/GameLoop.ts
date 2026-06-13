@@ -43,6 +43,27 @@ import {
 import { InputHandler } from './InputHandler';
 import { AIController } from './AIController';
 
+// ─── State Sync Payload (host → client every N frames) ──────────────
+
+export interface FighterSyncData {
+  x: number; y: number;
+  vx: number; vy: number;
+  state: string;
+  direction: number;
+  damage: number;
+  stocks: number;
+  isDead: boolean;
+  hitstunFrames: number;
+  isOnGround: boolean;
+}
+
+export interface StateSyncPayload {
+  p1: FighterSyncData;
+  p2: FighterSyncData;
+  timer: number;
+  frame: number;
+}
+
 // ─── Game Loop Options ───────────────────────────────────────────────
 
 export interface GameLoopOptions {
@@ -58,6 +79,8 @@ export interface GameLoopOptions {
   getP2Input?: () => { joystick: { x: number; y: number }; attack: boolean; special: boolean; jump: boolean; shield: boolean; grab: boolean; attackPressed: boolean; specialPressed: boolean; jumpPressed: boolean; shieldPressed: boolean; grabPressed: boolean; } | null;
   /** Optional callback to send P1 input over network (online mode). */
   onLocalInput?: (input: { joystick: { x: number; y: number }; attack: boolean; special: boolean; jump: boolean; shield: boolean; grab: boolean; attackPressed: boolean; specialPressed: boolean; jumpPressed: boolean; shieldPressed: boolean; grabPressed: boolean; frame: number }) => void;
+  /** Host-only: broadcast authoritative game state every SYNC_INTERVAL frames. */
+  onStateSync?: (state: StateSyncPayload) => void;
   matchTime: number;
   onDamageUpdate: (player: 1 | 2, damage: number) => void;
   onStockUpdate: (player: 1 | 2, stocks: number) => void;
@@ -80,7 +103,10 @@ export class GameLoop {
   private aiController: AIController;
   private getP2Input?: GameLoopOptions['getP2Input'];
   private onLocalInput?: GameLoopOptions['onLocalInput'];
+  private onStateSync?: GameLoopOptions['onStateSync'];
   private localFrame = 0;
+  private syncCounter = 0;
+  private readonly SYNC_INTERVAL = 2; // broadcast every 2 physics frames (~33ms)
 
   private camera: Camera = {
     x: 0, y: 0, zoom: 1.0,
@@ -137,6 +163,7 @@ export class GameLoop {
     this.aiController = opts.aiController;
     this.getP2Input = opts.getP2Input;
     this.onLocalInput = opts.onLocalInput;
+    this.onStateSync = opts.onStateSync;
     this.matchState.timer = opts.matchTime;
 
     this.onDamageUpdate = opts.onDamageUpdate;
@@ -361,6 +388,54 @@ export class GameLoop {
     // Sync React state
     this.onDamageUpdate(1, Math.round(this.player1.damage));
     this.onDamageUpdate(2, Math.round(this.player2.damage));
+
+    // Host: broadcast authoritative state every SYNC_INTERVAL frames
+    if (this.onStateSync && ++this.syncCounter >= this.SYNC_INTERVAL) {
+      this.syncCounter = 0;
+      this.onStateSync({
+        p1: this.extractFighterSync(this.player1),
+        p2: this.extractFighterSync(this.player2),
+        timer: this.matchState.timer,
+        frame: this.localFrame,
+      });
+    }
+  }
+
+  private extractFighterSync(f: FighterState): FighterSyncData {
+    return {
+      x: f.position.x, y: f.position.y,
+      vx: f.velocity.x, vy: f.velocity.y,
+      state: f.state,
+      direction: f.direction,
+      damage: f.damage,
+      stocks: f.stocks,
+      isDead: f.isDead,
+      hitstunFrames: f.hitstunFrames,
+      isOnGround: f.isOnGround,
+    };
+  }
+
+  /** Client: snap to host's authoritative state.
+   *  Host's P1 = client's P2, host's P2 = client's P1. */
+  applyRemoteState(state: StateSyncPayload): void {
+    this.snapFighter(this.player2, state.p1); // host char (host's P1) → our P2
+    this.snapFighter(this.player1, state.p2); // client char (host's P2) → our P1
+    if (this.matchState.phase === 'active') {
+      this.matchState.timer = state.timer;
+    }
+  }
+
+  private snapFighter(f: FighterState, s: FighterSyncData): void {
+    f.position.x = s.x;
+    f.position.y = s.y;
+    f.velocity.x = s.vx;
+    f.velocity.y = s.vy;
+    f.direction = s.direction as 1 | -1;
+    f.damage = s.damage;
+    f.stocks = s.stocks;
+    f.isDead = s.isDead;
+    f.hitstunFrames = s.hitstunFrames;
+    f.isOnGround = s.isOnGround;
   }
 
   // ── Update Single Fighter ──────────────────────────────────────────
