@@ -58,16 +58,24 @@ export default function CharacterSelect() {
   // ── Online: DB poll — write on select, poll opponent's row ───────────
   useEffect(() => {
     if (!onlineMode || !matchOpponent) return;
-    const myId = useGameStore.getState().user?.id;
-    if (!myId) return;
 
     pollRef.current = setInterval(async () => {
-      const { data } = await supabase
+      // Get user ID each tick in case AuthSync hadn't finished on mount
+      const myId = useGameStore.getState().user?.id;
+      if (!myId) return;
+
+      const { data, error } = await supabase
         .from('match_queue')
         .select('webrtc_offer')
         .eq('player_id', matchOpponent.id)
         .single();
+
+      if (error) {
+        console.warn('[CharSelect] Poll error:', error.code, error.message);
+        return;
+      }
       if (!data?.webrtc_offer) return;
+
       try {
         const payload = JSON.parse(data.webrtc_offer);
         if (payload.charId) {

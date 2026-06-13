@@ -139,7 +139,7 @@ export default function LobbyScreen() {
   const handleCancel = useCallback(async () => {
     if (timerRef.current) clearInterval(timerRef.current);
     if (cdTimerRef.current) clearInterval(cdTimerRef.current);
-    await mmRef.current?.cancel();
+    if (!matchFoundRef.current) await mmRef.current?.cancel();
     setCountdown(0);
     setOpponent(null);
     setIsReady(false);
@@ -171,7 +171,7 @@ export default function LobbyScreen() {
   const handleLeave = useCallback(async () => {
     if (timerRef.current) clearInterval(timerRef.current);
     if (cdTimerRef.current) clearInterval(cdTimerRef.current);
-    await mmRef.current?.cancel();
+    if (!matchFoundRef.current) await mmRef.current?.cancel();
     setScreen('menu');
     setIsReady(false);
     setLobbyPlayers([]);

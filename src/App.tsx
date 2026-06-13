@@ -27,9 +27,11 @@ function LoadingFallback() {
 }
 
 function AuthSync() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const setUser = useGameStore((s) => s.setUser);
-  useEffect(() => { setUser(user); }, [user, setUser]);
+  useEffect(() => {
+    if (!loading) setUser(user);
+  }, [user, loading, setUser]);
   return null;
 }
 
