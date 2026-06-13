@@ -224,13 +224,14 @@ export default function CharacterSelect() {
 
       {/* ─── Carousel ────────────────────────────────────────────── */}
       <div
-        className="flex-1 min-h-0 relative flex flex-col"
+        className="flex-1 min-h-0 relative flex flex-col overflow-hidden"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
-        {/* Big character card */}
-        <div className="flex-1 min-h-0 relative mx-4 rounded-2xl overflow-hidden border-2 transition-all duration-300"
+        {/* Big character card — capped so buttons below are always visible */}
+        <div className="relative mx-4 rounded-2xl overflow-hidden border-2 transition-all duration-300"
           style={{
+            height: 'min(52vh, 340px)',
             borderColor: char.accentColor + '99',
             boxShadow: `0 0 32px ${char.accentColor}30`,
           }}
@@ -246,61 +247,57 @@ export default function CharacterSelect() {
             >
               <img src={char.image} alt={char.name} className="w-full h-full object-cover object-top" draggable={false} />
               <div className="absolute inset-0" style={{
-                background: 'linear-gradient(to bottom, transparent 40%, rgba(5,5,7,0.7) 65%, rgba(5,5,7,0.97) 100%)',
+                background: 'linear-gradient(to bottom, transparent 30%, rgba(5,5,7,0.6) 58%, rgba(5,5,7,0.96) 100%)',
               }} />
 
-              <div className="absolute bottom-0 left-0 right-0 p-4 space-y-3">
-                <div>
-                  <h2 className="font-orbitron font-black text-[28px] text-text-primary leading-none">
+              <div className="absolute bottom-0 left-0 right-0 px-3 pt-2 pb-2 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <h2 className="font-orbitron font-black text-[22px] text-text-primary leading-none">
                     {char.name.toUpperCase()}
                   </h2>
                   <span
-                    className="inline-block mt-1 px-3 py-0.5 rounded-full font-rajdhani font-semibold text-[12px] tracking-widest"
+                    className="inline-block px-2 py-0.5 rounded-full font-rajdhani font-semibold text-[10px] tracking-widest"
                     style={{ backgroundColor: char.accentColor + '25', color: char.accentColor, border: `1px solid ${char.accentColor}50` }}
                   >
                     {char.archetype.toUpperCase()}
                   </span>
-                </div>
-
-                <div className="space-y-1.5">
-                  <StatBar label="SPD" value={char.stats.speed}   maxValue={5} color={char.accentColor} icon={<Zap size={12}/>} />
-                  <StatBar label="PWR" value={char.stats.power}   maxValue={5} color={char.accentColor} icon={<Sword size={12}/>} />
-                  <StatBar label="DEF" value={char.stats.defense} maxValue={5} color={char.accentColor} icon={<Shield size={12}/>} />
-                  <StatBar label="SPC" value={char.stats.special} maxValue={5} color={char.accentColor} icon={<Sparkles size={12}/>} />
-                </div>
-
-                {isLocalReady && player1Character?.id === char.id && (
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: char.accentColor }} />
-                    <span className="font-rajdhani font-bold text-[12px] tracking-widest" style={{ color: char.accentColor }}>
-                      SELECTED
+                  {isLocalReady && player1Character?.id === char.id && (
+                    <span className="font-rajdhani font-bold text-[10px] tracking-widest ml-auto" style={{ color: char.accentColor }}>
+                      ✓ SELECTED
                     </span>
-                  </div>
-                )}
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                  <StatBar label="SPD" value={char.stats.speed}   maxValue={5} color={char.accentColor} icon={<Zap size={11}/>} />
+                  <StatBar label="PWR" value={char.stats.power}   maxValue={5} color={char.accentColor} icon={<Sword size={11}/>} />
+                  <StatBar label="DEF" value={char.stats.defense} maxValue={5} color={char.accentColor} icon={<Shield size={11}/>} />
+                  <StatBar label="SPC" value={char.stats.special} maxValue={5} color={char.accentColor} icon={<Sparkles size={11}/>} />
+                </div>
               </div>
             </motion.div>
           </AnimatePresence>
 
-          <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center z-20"
+          <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center z-20"
             style={{ backgroundColor: 'rgba(10,10,15,0.7)', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <ChevronLeft size={20} className="text-white" />
+            <ChevronLeft size={18} className="text-white" />
           </button>
-          <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center z-20"
+          <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center z-20"
             style={{ backgroundColor: 'rgba(10,10,15,0.7)', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <ChevronRight size={20} className="text-white" />
+            <ChevronRight size={18} className="text-white" />
           </button>
         </div>
 
         {/* Thumbnails */}
-        <div className="flex-shrink-0 flex items-center justify-center gap-2 py-3">
+        <div className="flex-shrink-0 flex items-center justify-center gap-2 py-2">
           {CHARACTERS.map((c, i) => (
             <button
               key={c.id}
               onClick={() => !myReady && setActiveIndex(i)}
               className="relative rounded-lg overflow-hidden transition-all duration-200 flex-shrink-0"
               style={{
-                width: i === activeIndex ? 48 : 36,
-                height: i === activeIndex ? 48 : 36,
+                width: i === activeIndex ? 42 : 32,
+                height: i === activeIndex ? 42 : 32,
                 border: `2px solid ${i === activeIndex ? c.accentColor : '#2A2A3A'}`,
                 boxShadow: i === activeIndex ? `0 0 10px ${c.accentColor}60` : 'none',
                 opacity: myReady && player1Character?.id !== c.id && opponentCharId !== c.id ? 0.4 : 1,
@@ -309,11 +306,11 @@ export default function CharacterSelect() {
               <img src={c.image} alt={c.name} className="w-full h-full object-cover object-top" draggable={false} />
               {/* My selection dot */}
               {player1Character?.id === c.id && myReady && (
-                <div className="absolute top-0.5 left-0.5 w-2 h-2 rounded-full bg-accent-cyan border border-void" />
+                <div className="absolute top-0.5 left-0.5 w-1.5 h-1.5 rounded-full bg-accent-cyan border border-void" />
               )}
               {/* Opponent selection dot */}
               {opponentCharId === c.id && (
-                <div className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-[#E81D2D] border border-void" />
+                <div className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-[#E81D2D] border border-void" />
               )}
             </button>
           ))}
@@ -321,7 +318,7 @@ export default function CharacterSelect() {
       </div>
 
       {/* ─── Action Bar ──────────────────────────────────────────── */}
-      <div className="flex-shrink-0 px-4 pb-4 pt-2 space-y-2 z-40">
+      <div className="flex-shrink-0 px-4 pb-3 pt-1 space-y-1.5 z-40">
 
         {/* VS row */}
         <AnimatePresence>
