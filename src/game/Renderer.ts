@@ -22,6 +22,70 @@ export function preloadCharacterImages(): void {
   loadCharacterImage('ronin', `${base}characters/ronin.jpg?v=2`);
   loadCharacterImage('alchemist', `${base}characters/alchemist.png?v=2`);
   loadCharacterImage('gunner', `${base}characters/gunner.png?v=2`);
+  loadCharacterImage('gunner-sheet', `${base}characters/blaze-sheet.png?v=1`);
+}
+
+// ─── Blaze Sprite Sheet Config ───────────────────────────────────────
+// Sheet: 1376×768, 8 cols × 3 rows → each frame 172×256 px
+const BLAZE_SHEET = {
+  frameW: 172,
+  frameH: 256,
+  cols: 8,
+  // row indices
+  rows: {
+    walk: 0,   // idle / walk / run
+    attack: 1, // melee attack & hit
+    jump: 2,   // jump / fall / double-jump
+  },
+};
+
+function getBlazeRow(state: string): number {
+  if (
+    state === 'jump' || state === 'fall' ||
+    state === 'doubleJump' || state === 'dodgeAir'
+  ) return BLAZE_SHEET.rows.jump;
+  if (
+    state.startsWith('attack') || state === 'special' ||
+    state === 'hurt' || state === 'hitstun' ||
+    state === 'launched' || state === 'knockback'
+  ) return BLAZE_SHEET.rows.attack;
+  return BLAZE_SHEET.rows.walk;
+}
+
+// Advance through the animation at ~12 fps worth of game frames (60 fps game)
+const BLAZE_FRAME_RATE = 5; // game-frames per sprite-frame
+
+function drawBlazeSprite(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number,
+  w: number, h: number,
+  direction: number,
+  state: string,
+  gameFrame: number
+): void {
+  const sheet = CHARACTER_IMAGES['gunner-sheet'];
+  if (!sheet || !sheet.complete || sheet.naturalWidth === 0) return;
+
+  const row = getBlazeRow(state);
+  const col = Math.floor(gameFrame / BLAZE_FRAME_RATE) % BLAZE_SHEET.cols;
+  const sx = col * BLAZE_SHEET.frameW;
+  const sy = row * BLAZE_SHEET.frameH;
+
+  ctx.save();
+  if (direction === -1) {
+    ctx.translate(x, 0);
+    ctx.scale(-1, 1);
+    ctx.translate(-x, 0);
+  }
+
+  // Draw sprite centred on fighter bounding box
+  ctx.drawImage(
+    sheet,
+    sx, sy, BLAZE_SHEET.frameW, BLAZE_SHEET.frameH,
+    x - w / 2, y - h / 2, w, h
+  );
+
+  ctx.restore();
 }
 
 // ─── Stage Background Image Cache ────────────────────────────────────
@@ -61,9 +125,16 @@ function drawCharacterSilhouette(
   characterId: string,
   x: number, y: number,
   width: number, height: number,
-  _direction: number,
-  state: string
+  direction: number,
+  state: string,
+  gameFrame: number
 ): void {
+  // Blaze uses the sprite sheet instead of canvas shapes
+  if (characterId === 'gunner') {
+    drawBlazeSprite(ctx, x, y, width, height, direction, state, gameFrame);
+    return;
+  }
+
   const d = CHAR_DESIGN[characterId] ?? { skin: '#c8a882', body: '#333', accent: '#aaa', weapon: '#fff' };
 
   // Animation params derived from state
@@ -511,7 +582,8 @@ export function renderFighter(
       x, y,
       w, h,
       fighter.direction,
-      fighter.state
+      fighter.state,
+      fighter.frame
     );
 
     // Damage tint overlay
