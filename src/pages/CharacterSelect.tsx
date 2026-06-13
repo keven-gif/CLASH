@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Zap, Sword, Shield, Sparkles } from 'lucide-react';
 import { useGameStore, CHARACTERS } from '@/store/gameStore';
 import type { Character } from '@/store/gameStore';
+import { audioManager } from '@/audio/AudioManager';
 
 // ─── Stat Bar Component ──────────────────────────────────────────────
 
@@ -221,6 +222,11 @@ export default function CharacterSelect() {
   const navigate = useNavigate();
   const { player1Character, player2Character, selectCharacter } = useGameStore();
   const [cpuAssigned, setCpuAssigned] = useState(false);
+
+  // Play menu music on mount
+  useEffect(() => {
+    audioManager.playMusic('music-title');
+  }, []);
 
   // Auto-assign CPU a random different character after P1 selects
   const handleSelect = useCallback(

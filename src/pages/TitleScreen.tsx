@@ -185,13 +185,13 @@ export default function TitleScreen() {
         {user ? (
           <>
             <button
-              onClick={(e) => { e.stopPropagation(); navigate('/leaderboard'); }}
+              onClick={(e) => { e.stopPropagation(); audioManager.stopMusic(); navigate('/leaderboard'); }}
               className="w-9 h-9 rounded-full bg-bg-elevated border border-border-subtle flex items-center justify-center text-text-muted hover:text-[#FFB800] hover:border-[#FFB800]/40 transition-colors"
             >
               <Trophy size={16} />
             </button>
             <button
-              onClick={(e) => { e.stopPropagation(); navigate('/profile'); }}
+              onClick={(e) => { e.stopPropagation(); audioManager.stopMusic(); navigate('/profile'); }}
               className="flex items-center gap-2 px-3 h-9 rounded-full bg-bg-elevated border border-border-subtle hover:border-accent-cyan/40 transition-colors"
             >
               <User size={14} className="text-accent-cyan" />

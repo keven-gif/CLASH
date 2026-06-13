@@ -19,7 +19,10 @@ export type SFXName =
 export type MusicName =
   | 'music-title'
   | 'music-gameplay'
-  | 'music-results';
+  | 'music-results'
+  | 'menu'
+  | 'battle'
+  | 'results';
 
 class AudioManager {
   private static instance: AudioManager;
@@ -65,7 +68,6 @@ class AudioManager {
     if (this.sfxVolume <= 0) return;
 
     const path = `/audio/sfx-${name}.mp3`;
-    console.log(`[AudioManager] playSFX: ${name} (${path}, volume: ${this.sfxVolume})`);
 
     try {
       const audio = new Audio(path);
@@ -83,23 +85,30 @@ class AudioManager {
   playMusic(name: MusicName): void {
     if (this.musicVolume <= 0) return;
 
+    // Resolve short aliases to full names
+    const aliasMap: Record<string, MusicName> = {
+      menu: 'music-title',
+      battle: 'music-gameplay',
+      results: 'music-results',
+    };
+    const resolvedName: MusicName = (aliasMap[name] as MusicName) ?? name;
+
     // Don't restart if already playing
-    if (this.currentMusicName === name && this.currentMusic && !this.currentMusic.paused) {
+    if (this.currentMusicName === resolvedName && this.currentMusic && !this.currentMusic.paused) {
       return;
     }
 
     // Stop any current music
     this.stopMusic();
 
-    const path = `/audio/${name}.mp3`;
-    console.log(`[AudioManager] playMusic: ${name} (${path}, volume: ${this.musicVolume})`);
+    const path = `/audio/${resolvedName}.mp3`;
 
     try {
       const audio = new Audio(path);
       audio.loop = true;
       audio.volume = this.musicVolume;
       this.currentMusic = audio;
-      this.currentMusicName = name;
+      this.currentMusicName = resolvedName;
       audio.play().catch(() => {
         // Autoplay blocked, will need user interaction first
       });

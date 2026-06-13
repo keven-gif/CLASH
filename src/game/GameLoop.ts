@@ -56,6 +56,8 @@ export interface GameLoopOptions {
   aiController: AIController;
   /** Optional override for P2 input (online mode). Return null to fall back to AI. */
   getP2Input?: () => { joystick: { x: number; y: number }; attack: boolean; special: boolean; jump: boolean; shield: boolean; grab: boolean; attackPressed: boolean; specialPressed: boolean; jumpPressed: boolean; shieldPressed: boolean; grabPressed: boolean; } | null;
+  /** Optional callback to send P1 input over network (online mode). */
+  onLocalInput?: (input: { joystick: { x: number; y: number }; attack: boolean; special: boolean; jump: boolean; shield: boolean; grab: boolean; attackPressed: boolean; specialPressed: boolean; jumpPressed: boolean; shieldPressed: boolean; grabPressed: boolean; frame: number }) => void;
   matchTime: number;
   onDamageUpdate: (player: 1 | 2, damage: number) => void;
   onStockUpdate: (player: 1 | 2, stocks: number) => void;
@@ -77,6 +79,8 @@ export class GameLoop {
   private inputHandler: InputHandler;
   private aiController: AIController;
   private getP2Input?: GameLoopOptions['getP2Input'];
+  private onLocalInput?: GameLoopOptions['onLocalInput'];
+  private localFrame = 0;
 
   private camera: Camera = {
     x: 0, y: 0, zoom: 1.0,
@@ -110,6 +114,8 @@ export class GameLoop {
 
   private paused = false;
   private matchEnded = false;
+  private matchEndFired = false;
+  private opts: GameLoopOptions;
 
   // Callbacks
   private onDamageUpdate: (player: 1 | 2, damage: number) => void;
@@ -120,6 +126,7 @@ export class GameLoop {
   private onPhaseUpdate: (phase: MatchState['phase']) => void;
 
   constructor(opts: GameLoopOptions) {
+    this.opts = opts;
     this.canvas = opts.canvas;
     this.ctx = opts.ctx;
     this.stage = opts.stage;
@@ -129,6 +136,7 @@ export class GameLoop {
     this.inputHandler = opts.inputHandler;
     this.aiController = opts.aiController;
     this.getP2Input = opts.getP2Input;
+    this.onLocalInput = opts.onLocalInput;
     this.matchState.timer = opts.matchTime;
 
     this.onDamageUpdate = opts.onDamageUpdate;
@@ -151,6 +159,9 @@ export class GameLoop {
 
   start(): void {
     this.paused = false;
+    this.matchEnded = false;
+    this.matchEndFired = false;
+    this.matchState.timer = this.opts.matchTime;
     this.lastTime = performance.now();
     this.countdownValue = 3;
     this.countdownTimer = 0;
@@ -317,6 +328,10 @@ export class GameLoop {
 
     // Get inputs
     const p1Input = this.inputHandler.getGameInput();
+    // Send P1 input over network if in online mode
+    if (this.onLocalInput) {
+      this.onLocalInput({ ...p1Input, frame: this.localFrame++ });
+    }
     const remoteInput = this.getP2Input?.();
     const p2Input = remoteInput ?? this.aiController.update(this.player2, this.player1, this.stage);
 
@@ -485,8 +500,20 @@ export class GameLoop {
   // ── Blast Zones ────────────────────────────────────────────────────
 
   private checkBlastZones(): void {
+    // M7: shrink blast zones by 30% during sudden death
+    const bzScale = this.matchState.suddenDeath ? 0.7 : 1.0;
+    const effectiveStage = bzScale !== 1.0 ? {
+      ...this.stage,
+      blastZones: {
+        left: this.stage.blastZones.left * bzScale,
+        right: this.stage.blastZones.right * bzScale,
+        top: this.stage.blastZones.top * bzScale,
+        bottom: this.stage.blastZones.bottom * bzScale,
+      },
+    } : this.stage;
+
     // Player 1
-    if (checkBlastZone(this.player1, this.stage) && !this.player1.isDead) {
+    if (checkBlastZone(this.player1, effectiveStage) && !this.player1.isDead) {
       koFighter(this.player1);
       this.onStockUpdate(1, this.player1.stocks);
       this.spawnKOParticles(this.player1);
@@ -496,7 +523,7 @@ export class GameLoop {
     }
 
     // Player 2
-    if (checkBlastZone(this.player2, this.stage) && !this.player2.isDead) {
+    if (checkBlastZone(this.player2, effectiveStage) && !this.player2.isDead) {
       koFighter(this.player2);
       this.onStockUpdate(2, this.player2.stocks);
       this.spawnKOParticles(this.player2);
@@ -546,6 +573,8 @@ export class GameLoop {
   private endMatch(winner: 1 | 2): void {
     if (this.matchEnded) return;
     this.matchEnded = true;
+    if (this.matchEndFired) return;
+    this.matchEndFired = true;
     this.matchState.phase = 'gameOver';
     this.onPhaseUpdate('gameOver');
     this.onMatchEnd(winner);

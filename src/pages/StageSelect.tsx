@@ -1,9 +1,10 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, AlertTriangle } from 'lucide-react';
 import { useGameStore, STAGES } from '@/store/gameStore';
 import type { Stage } from '@/store/gameStore';
+import { audioManager } from '@/audio/AudioManager';
 
 // ─── Stage Card Component ────────────────────────────────────────────
 
@@ -272,6 +273,11 @@ export default function StageSelect() {
   const [hazardsOn, setHazardsOn] = useState(hazardsEnabled);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Play menu music on mount
+  useEffect(() => {
+    audioManager.playMusic('music-title');
+  }, []);
 
   // Auto-select first stage if none selected
   const currentStage = selectedStage || STAGES[0];

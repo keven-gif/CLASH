@@ -8,8 +8,6 @@ export function useAuth() {
 
   // ── Fetch or create profile for a user ────────────────────────────
   const fetchProfile = useCallback(async (userId: string) => {
-    console.log('[useAuth] fetchProfile for', userId);
-
     // Try to fetch existing profile
     const { data, error } = await supabase
       .from('profiles')
@@ -18,13 +16,10 @@ export function useAuth() {
       .single();
 
     if (data && !error) {
-      console.log('[useAuth] profile found:', data.username);
       setUser(data as Profile);
       setLoading(false);
       return;
     }
-
-    console.log('[useAuth] no profile found, creating...');
 
     // Profile doesn't exist yet — upsert so DB trigger / signUp races are harmless
     const { data: sessionData } = await supabase.auth.getSession();
@@ -45,7 +40,6 @@ export function useAuth() {
       .single();
 
     if (upsertError) {
-      console.error('[useAuth] profile upsert failed:', upsertError.message);
       // On duplicate-key or any error, try a plain fetch — the row likely exists
       const { data: existing } = await supabase
         .from('profiles').select('*').eq('id', userId).single();
@@ -54,7 +48,6 @@ export function useAuth() {
       }
       // Never setUser(null) here — that triggers a redirect loop
     } else if (newProfile) {
-      console.log('[useAuth] profile upserted:', newProfile.username);
       setUser(newProfile as Profile);
     }
 
@@ -63,26 +56,21 @@ export function useAuth() {
 
   // ── Listen for auth state changes ─────────────────────────────────
   useEffect(() => {
-    console.log('[useAuth] useEffect running');
-
     // Check existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('[useAuth] getSession result:', session ? 'has session' : 'no session');
       setSession(session);
       if (session?.user) {
         fetchProfile(session.user.id);
       } else {
         setLoading(false);
       }
-    }).catch((err) => {
-      console.error('[useAuth] getSession failed:', err);
+    }).catch(() => {
       setLoading(false);
     });
 
     // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        console.log('[useAuth] onAuthStateChange:', event, session?.user?.email);
+      (_event, session) => {
         setSession(session);
         if (session?.user) {
           fetchProfile(session.user.id);

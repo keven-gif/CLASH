@@ -9,12 +9,23 @@ export default function Leaderboard() {
   const navigate = useNavigate();
   const [players, setPlayers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
+  const fetchLeaderboard = () => {
+    setLoading(true);
+    setError('');
     api.getLeaderboard(50).then((data) => {
       setPlayers(data);
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(() => {
+      setError('Failed to load leaderboard.');
+      setLoading(false);
+    });
+  };
+
+  useEffect(() => {
+    fetchLeaderboard();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const rankIcon = (rank: number) => {
@@ -49,6 +60,16 @@ export default function Leaderboard() {
           {loading ? (
             <div className="flex justify-center py-12">
               <div className="w-6 h-6 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin" />
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center py-12 gap-4">
+              <p className="font-rajdhani text-[14px] text-hp-high">{error}</p>
+              <button
+                onClick={fetchLeaderboard}
+                className="px-6 py-2 rounded-xl font-rajdhani font-semibold text-[14px] bg-accent-cyan text-bg-dark"
+              >
+                Retry
+              </button>
             </div>
           ) : players.length === 0 ? (
             <div className="text-center py-12">

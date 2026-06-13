@@ -34,7 +34,7 @@ export class NetworkManager {
   async createOffer(): Promise<string> {
     this.pc = new RTCPeerConnection({ iceServers: this.iceServers });
     this.setupPC();
-    this.dc = this.pc.createDataChannel('game', { ordered: true, maxRetransmits: 0 });
+    this.dc = this.pc.createDataChannel('game', { ordered: false, maxRetransmits: 0 });
     this.setupDC();
     const offer = await this.pc.createOffer();
     await this.pc.setLocalDescription(offer);
@@ -87,7 +87,7 @@ export class NetworkManager {
   private waitIce(): Promise<void> {
     return new Promise((resolve) => {
       if (!this.pc) { resolve(); return; }
-      const t = setTimeout(() => resolve(), 3000);
+      const t = setTimeout(() => resolve(), 8000);
       this.pc.onicegatheringstatechange = () => {
         if (this.pc?.iceGatheringState === 'complete') { clearTimeout(t); resolve(); }
       };

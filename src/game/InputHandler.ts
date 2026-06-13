@@ -247,6 +247,15 @@ export class InputHandler {
     };
   }
 
+  // ── Button Setter (public) ─────────────────────────────────────────
+
+  setButton(button: string, pressed: boolean): void {
+    if (pressed && !this.buttons[button]) {
+      this.buttonsPressed[button] = true;
+    }
+    this.buttons[button] = pressed;
+  }
+
   // ── Button Queries ─────────────────────────────────────────────────
 
   isButtonPressed(button: string): boolean {

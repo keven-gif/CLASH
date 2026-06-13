@@ -89,6 +89,10 @@ export default function LobbyScreen() {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
 
+    // Destroy any existing matchmaking connection before creating a new one (H6)
+    mmRef.current?.destroy();
+    wsRef.current?.disconnect();
+
     const mm = new MatchmakingManager();
     mmRef.current = mm;
 

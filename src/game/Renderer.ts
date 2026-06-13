@@ -43,15 +43,89 @@ export function preloadStageImages(): void {
   loadStageImage('hazard', `${base}stages/stage-hazard.jpg?v=2`);
 }
 
-// ─── Character Placeholder Colors (fallback while images load) ───────
+// ─── Character Silhouette Colors ─────────────────────────────────────
 
 const CHARACTER_COLORS: Record<string, { primary: string; secondary: string }> = {
-  assassin: { primary: '#E81D2D', secondary: '#8B1A1A' },
-  swordsman: { primary: '#00E5D4', secondary: '#007A73' },
-  ronin: { primary: '#4DA6FF', secondary: '#2A5C8D' },
-  alchemist: { primary: '#39FF14', secondary: '#1A7A0A' },
-  gunner: { primary: '#FF8C00', secondary: '#8B4513' },
+  assassin: { primary: '#2a2a2a', secondary: '#8b0000' },
+  swordsman: { primary: '#1a3a5c', secondary: '#4a7a9b' },
+  ronin: { primary: '#2d2d2d', secondary: '#8b7355' },
+  alchemist: { primary: '#1a4a1a', secondary: '#4a8b4a' },
+  gunner: { primary: '#3d2b1f', secondary: '#8b6347' },
 };
+
+// ─── Character Silhouette Drawing ────────────────────────────────────
+
+function drawCharacterSilhouette(
+  ctx: CanvasRenderingContext2D,
+  characterId: string,
+  x: number, y: number,
+  width: number, height: number,
+  direction: number,
+  _state: string
+): void {
+  const colors = CHARACTER_COLORS[characterId] ?? { primary: '#888', secondary: '#555' };
+  ctx.save();
+  if (direction === -1) {
+    ctx.translate(x, y);
+    ctx.scale(-1, 1);
+    ctx.translate(-x, -y);
+  }
+
+  const cx = x;
+  const cy = y;
+
+  // Head
+  ctx.fillStyle = colors.primary;
+  ctx.beginPath();
+  ctx.arc(cx, cy - height * 0.35, width * 0.18, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Torso
+  ctx.fillStyle = colors.secondary;
+  ctx.fillRect(cx - width * 0.14, cy - height * 0.28, width * 0.28, height * 0.3);
+
+  // Legs
+  ctx.fillStyle = colors.primary;
+  ctx.fillRect(cx - width * 0.12, cy + 0.02 * height, width * 0.1, height * 0.25);
+  ctx.fillRect(cx + 0.02 * width, cy + 0.02 * height, width * 0.1, height * 0.25);
+
+  // Arms
+  ctx.fillStyle = colors.secondary;
+  ctx.fillRect(cx - width * 0.24, cy - height * 0.25, width * 0.1, height * 0.22);
+  ctx.fillRect(cx + width * 0.14, cy - height * 0.25, width * 0.1, height * 0.22);
+
+  // Weapon
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  switch (characterId) {
+    case 'assassin':
+      ctx.arc(cx + width * 0.3, cy - height * 0.1, width * 0.2, -0.8, 0.8);
+      break;
+    case 'swordsman':
+      ctx.moveTo(cx + width * 0.24, cy - height * 0.28);
+      ctx.lineTo(cx + width * 0.38, cy - height * 0.08);
+      break;
+    case 'ronin':
+      ctx.moveTo(cx + width * 0.24, cy - height * 0.32);
+      ctx.lineTo(cx + width * 0.44, cy + height * 0.02);
+      break;
+    case 'alchemist':
+      ctx.moveTo(cx + width * 0.24, cy - height * 0.22);
+      ctx.lineTo(cx + width * 0.36, cy - height * 0.14);
+      ctx.arc(cx + width * 0.38, cy - height * 0.1, width * 0.07, 0, Math.PI * 2);
+      break;
+    case 'gunner':
+      ctx.moveTo(cx + width * 0.24, cy - height * 0.18);
+      ctx.lineTo(cx + width * 0.44, cy - height * 0.18);
+      ctx.moveTo(cx + width * 0.34, cy - height * 0.18);
+      ctx.lineTo(cx + width * 0.34, cy - height * 0.10);
+      break;
+  }
+  ctx.stroke();
+
+  ctx.restore();
+}
 
 // ─── Render Stage ────────────────────────────────────────────────────
 
@@ -203,7 +277,6 @@ export function renderFighter(
   const stats = CHARACTER_STATS[fighter.characterId];
   if (!stats) return;
 
-  const colors = CHARACTER_COLORS[fighter.characterId] ?? { primary: '#FFFFFF', secondary: '#888888' };
   const accent = getCharacterAccentColor(fighter.characterId);
 
   const x = fighter.position.x * scale + offsetX;
@@ -251,75 +324,29 @@ export function renderFighter(
     ctx.translate(-x, -y);
   }
 
-  // ── Character Image ────────────────────────────────────────────────
-  const charImg = CHARACTER_IMAGES[fighter.characterId];
-  const imgReady = charImg && charImg.complete && charImg.naturalWidth > 0;
+  // ── Character Silhouette ───────────────────────────────────────────
+  if (fighter.hitFlash > 0) {
+    // Hit flash: draw white rectangle
+    ctx.fillStyle = '#FFFFFF';
+    roundRect(ctx, x - w / 2, y - h / 2, w, h, 6 * scale);
+    ctx.fill();
+  } else {
+    drawCharacterSilhouette(
+      ctx,
+      fighter.characterId,
+      x, y,
+      w, h,
+      fighter.direction,
+      fighter.state
+    );
 
-  if (imgReady) {
-    // Draw character portrait image, fitting within the fighter's bounding box
-    // Use cover-fit approach: scale to fill while preserving aspect ratio
-    const imgW = charImg.naturalWidth;
-    const imgH = charImg.naturalHeight;
-    const imgRatio = imgW / imgH;
-    const boxRatio = w / h;
-
-    let sx: number, sy: number, sw: number, sh: number;
-    if (imgRatio > boxRatio) {
-      // Image is wider than box — crop sides, fit height
-      sh = imgH;
-      sw = imgH * boxRatio;
-      sx = (imgW - sw) / 2;
-      sy = 0;
-    } else {
-      // Image is taller than box — crop top/bottom, fit width
-      sw = imgW;
-      sh = imgW / boxRatio;
-      sx = 0;
-      sy = (imgH - sh) / 2;
-    }
-
-    // Hit flash: draw white instead of image
-    if (fighter.hitFlash > 0) {
-      ctx.fillStyle = '#FFFFFF';
+    // Damage tint overlay
+    if (fighter.damage > 50) {
+      const tintAlpha = Math.min(0.3, (fighter.damage - 50) / 500);
+      ctx.fillStyle = `rgba(232, 29, 45, ${tintAlpha})`;
       roundRect(ctx, x - w / 2, y - h / 2, w, h, 6 * scale);
       ctx.fill();
-    } else {
-      // Clip to rounded rectangle and draw image
-      ctx.save();
-      roundRect(ctx, x - w / 2, y - h / 2, w, h, 6 * scale);
-      ctx.clip();
-      ctx.drawImage(charImg, sx, sy, sw, sh, x - w / 2, y - h / 2, w, h);
-      ctx.restore();
-
-      // Damage tint overlay
-      if (fighter.damage > 50) {
-        const tintAlpha = Math.min(0.3, (fighter.damage - 50) / 500);
-        ctx.fillStyle = `rgba(232, 29, 45, ${tintAlpha})`;
-        roundRect(ctx, x - w / 2, y - h / 2, w, h, 6 * scale);
-        ctx.fill();
-      }
     }
-  } else {
-    // ── Fallback: placeholder shape while image loads ──────────────
-    const cornerRadius = 6 * scale;
-    ctx.fillStyle = fighter.hitFlash > 0 ? '#FFFFFF' : colors.primary;
-    roundRect(ctx, x - w / 2, y - h / 2, w, h, cornerRadius);
-    ctx.fill();
-
-    const bodyGrad = ctx.createLinearGradient(x - w / 2, y - h / 2, x - w / 2, y + h / 2);
-    bodyGrad.addColorStop(0, colors.primary + 'cc');
-    bodyGrad.addColorStop(0.7, colors.primary + '88');
-    bodyGrad.addColorStop(1, colors.secondary + 'aa');
-    ctx.fillStyle = bodyGrad;
-    roundRect(ctx, x - w / 2 + 2, y - h / 2 + 2, w - 4, h - 4, cornerRadius - 2);
-    ctx.fill();
-
-    // Head circle placeholder
-    const headRadius = (stats.width * 0.45) * scale;
-    ctx.fillStyle = fighter.hitFlash > 0 ? '#FFFFFF' : colors.primary;
-    ctx.beginPath();
-    ctx.arc(x + w * 0.05, y - h / 2 + headRadius, headRadius, 0, Math.PI * 2);
-    ctx.fill();
   }
 
   // White border outline for visibility against any background

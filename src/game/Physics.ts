@@ -83,8 +83,8 @@ export function calculateKnockback(
   const attackScaling = attackDamage * knockbackScaling * 0.01;
   const totalKnockback = (baseKnockback + damageScaling + attackScaling) / weight;
 
-  // Clamp: min 2, max 55 (high cap for dramatic KOs at 200%+ damage)
-  const clampedKB = Math.max(2, Math.min(totalKnockback, 55));
+  // Clamp: min 2, max 28 (lowered cap for tighter knockback control)
+  const clampedKB = Math.max(2, Math.min(totalKnockback, 28));
 
   // Convert angle to radians
   const angleRad = (angleDegrees * Math.PI) / 180;

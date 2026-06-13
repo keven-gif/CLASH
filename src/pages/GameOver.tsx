@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
 import { useGameStore, CHARACTERS } from '@/store/gameStore'
 import { RotateCcw, Swords, Home } from 'lucide-react'
+import { audioManager } from '@/audio/AudioManager'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -194,6 +195,12 @@ export default function GameOver() {
     effectiveWinner === 1
       ? (player2Character ?? CHARACTERS[2])
       : (player1Character ?? CHARACTERS[0])
+
+  // Play results music on mount, stop on unmount
+  useEffect(() => {
+    audioManager.playMusic('results')
+    return () => { audioManager.stopMusic() }
+  }, [])
 
   const winnerAccent = winnerCharacter.accentColor
   const stats = matchStats ?? {

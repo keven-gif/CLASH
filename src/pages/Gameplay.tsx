@@ -30,7 +30,7 @@ export default function Gameplay() {
   const timeLimit = useGameStore((s) => s.timeLimit);
   const pauseGame = useGameStore((s) => s.pauseGame);
   const resumeGame = useGameStore((s) => s.resumeGame);
-  const restartMatch = useGameStore((s) => s.restartMatch);
+
   const endMatch = useGameStore((s) => s.endMatch);
   const loseStock = useGameStore((s) => s.loseStock);
   const stockCount = useGameStore((s) => s.stockCount);
@@ -40,6 +40,10 @@ export default function Gameplay() {
   const [p2Damage, setP2Damage] = useState(0);
   const [p1Stocks, setP1Stocks] = useState(stockCount);
   const [p2Stocks, setP2Stocks] = useState(stockCount);
+
+  // Refs to avoid stale closure in onStockUpdate callback (H8)
+  const p1StocksRef = useRef(stockCount);
+  const p2StocksRef = useRef(stockCount);
   const [timer, setTimer] = useState(timeLimit);
   const [countdown, setCountdown] = useState(3);
   const [isPaused, setIsPaused] = useState(false);
@@ -48,6 +52,10 @@ export default function Gameplay() {
   const [joystickPos, setJoystickPos] = useState({ x: 0, y: 0 });
   const [activeButtons, setActiveButtons] = useState<Record<string, boolean>>({});
   const [joystickActive, setJoystickActive] = useState(false);
+
+  // Keep stock refs in sync with state (H8 fix)
+  useEffect(() => { p1StocksRef.current = p1Stocks; }, [p1Stocks]);
+  useEffect(() => { p2StocksRef.current = p2Stocks; }, [p2Stocks]);
 
   // ── Refs ───────────────────────────────────────────────────────────
   const gameLoopRef = useRef<GameLoop | null>(null);
@@ -151,14 +159,10 @@ export default function Gameplay() {
       (async () => {
         try {
           if (isHost) {
-            const offer = await nm.createOffer();
-            // In a real deployment, signal via Supabase realtime / WebSocket
-            console.log('[online] offer ready, awaiting answer', offer.slice(0, 60));
-          } else {
-            console.log('[online] guest — waiting for host offer via signalling');
+            await nm.createOffer();
           }
-        } catch (e) {
-          console.warn('[online] WebRTC setup failed, falling back to AI', e);
+        } catch {
+          // WebRTC setup failed, falling back to AI
         }
       })();
     }
@@ -176,16 +180,21 @@ export default function Gameplay() {
       getP2Input: onlineMode
         ? () => latestRemoteInput.current
         : undefined,
+      onLocalInput: onlineMode
+        ? (input) => { networkRef.current?.sendInput(input); }
+        : undefined,
       matchTime: timeLimit,
       onDamageUpdate: (player, damage) => {
         if (player === 1) setP1Damage(damage);
         else setP2Damage(damage);
       },
       onStockUpdate: (player, stocks) => {
-        if (player === 1) setP1Stocks(stocks);
-        else setP2Stocks(stocks);
-        if (stocks < (player === 1 ? p1Stocks : p2Stocks)) {
-          loseStock(player);
+        if (player === 1) {
+          if (stocks < p1StocksRef.current) loseStock(player);
+          setP1Stocks(stocks);
+        } else {
+          if (stocks < p2StocksRef.current) loseStock(player);
+          setP2Stocks(stocks);
         }
       },
       onTimerUpdate: (t) => setTimer(t),
@@ -256,12 +265,9 @@ export default function Gameplay() {
   }, [resumeGame]);
 
   const handleRestart = useCallback(() => {
-    matchEndedRef.current = false;
-    setMatchEnded(false);
-    setIsPaused(false);
-    restartMatch();
-    gameLoopRef.current?.start();
-  }, [restartMatch]);
+    gameLoopRef.current?.destroy();
+    window.location.reload();
+  }, []);
 
   const handleQuit = useCallback(() => {
     gameLoopRef.current?.destroy();
@@ -495,13 +501,14 @@ export default function Gameplay() {
             <div className="flex gap-3 justify-end mb-2">
               {/* Special (B) */}
               <button
+                aria-label="Special attack"
                 className="w-16 h-16 rounded-full border-2 flex items-center justify-center font-orbitron font-bold text-xl pointer-events-auto active:scale-[0.88] transition-transform"
                 style={{
                   backgroundColor: activeButtons.special ? 'rgba(0,229,212,0.35)' : 'rgba(0,229,212,0.15)',
                   borderColor: 'rgba(0,229,212,0.35)',
                   color: '#00E5D4',
                 }}
-                onTouchStart={(e) => { e.stopPropagation(); pressButton('special'); }}
+                onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); pressButton('special'); }}
                 onTouchEnd={(e) => { e.stopPropagation(); releaseButton('special'); }}
               >
                 B
@@ -509,13 +516,14 @@ export default function Gameplay() {
 
               {/* Attack (A) */}
               <button
+                aria-label="Attack"
                 className="w-16 h-16 rounded-full border-2 flex items-center justify-center font-orbitron font-bold text-xl pointer-events-auto active:scale-[0.88] transition-transform"
                 style={{
                   backgroundColor: activeButtons.attack ? 'rgba(240,240,245,0.35)' : 'rgba(240,240,245,0.15)',
                   borderColor: 'rgba(240,240,245,0.35)',
                   color: '#F0F0F5',
                 }}
-                onTouchStart={(e) => { e.stopPropagation(); pressButton('attack'); }}
+                onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); pressButton('attack'); }}
                 onTouchEnd={(e) => { e.stopPropagation(); releaseButton('attack'); }}
               >
                 <Swords size={22} strokeWidth={2.5} />
@@ -526,12 +534,13 @@ export default function Gameplay() {
             <div className="flex gap-3 justify-end items-end">
               {/* Jump */}
               <button
+                aria-label="Jump"
                 className="w-14 h-14 rounded-full border-[1.5px] flex items-center justify-center pointer-events-auto active:scale-[0.88] transition-transform"
                 style={{
                   backgroundColor: activeButtons.jump ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)',
                   borderColor: 'rgba(255,255,255,0.2)',
                 }}
-                onTouchStart={(e) => { e.stopPropagation(); pressButton('jump'); }}
+                onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); pressButton('jump'); }}
                 onTouchEnd={(e) => { e.stopPropagation(); releaseButton('jump'); }}
               >
                 <ChevronUp size={22} strokeWidth={2.5} className="text-text-secondary" />
@@ -539,12 +548,13 @@ export default function Gameplay() {
 
               {/* Grab */}
               <button
+                aria-label="Grab"
                 className="w-14 h-14 rounded-full border-[1.5px] flex items-center justify-center pointer-events-auto active:scale-[0.88] transition-transform"
                 style={{
                   backgroundColor: activeButtons.grab ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)',
                   borderColor: 'rgba(255,255,255,0.15)',
                 }}
-                onTouchStart={(e) => { e.stopPropagation(); pressButton('grab'); }}
+                onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); pressButton('grab'); }}
                 onTouchEnd={(e) => { e.stopPropagation(); releaseButton('grab'); }}
               >
                 <Hand size={18} strokeWidth={2} className="text-text-secondary" />
@@ -552,12 +562,13 @@ export default function Gameplay() {
 
               {/* Shield */}
               <button
+                aria-label="Shield"
                 className="w-14 h-14 rounded-full border-[1.5px] flex items-center justify-center pointer-events-auto active:scale-[0.88] transition-transform"
                 style={{
                   backgroundColor: activeButtons.shield ? 'rgba(77,166,255,0.3)' : 'rgba(77,166,255,0.12)',
                   borderColor: 'rgba(77,166,255,0.3)',
                 }}
-                onTouchStart={(e) => { e.stopPropagation(); pressButton('shield'); }}
+                onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); pressButton('shield'); }}
                 onTouchEnd={(e) => { e.stopPropagation(); releaseButton('shield'); }}
               >
                 <Shield size={18} strokeWidth={2} className="text-[#4DA6FF]" />
