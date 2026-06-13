@@ -1,4 +1,4 @@
-import { supabase, type Profile } from '@/supabase/client';
+import type { Profile } from '@/supabase/client';
 import { api } from '@/supabase/api';
 
 export type MatchmakingState = 'idle' | 'searching' | 'found' | 'connecting' | 'ready' | 'failed';
@@ -11,7 +11,6 @@ export interface MatchFound {
 export class MatchmakingManager {
   private state: MatchmakingState = 'idle';
   private myProfile: Profile | null = null;
-  private sub: any = null;
   private onStateCb: ((s: MatchmakingState) => void) | null = null;
   private onMatch: ((m: MatchFound) => void) | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -22,55 +21,38 @@ export class MatchmakingManager {
     this.done = false;
     this.setState('searching');
     await api.joinQueue(profile.id, profile.username, profile.rank);
-
-    // Realtime subscription — fires when our row is updated to matched
-    this.sub = supabase
-      .channel('mq_' + profile.id)
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'match_queue',
-        filter: `player_id=eq.${profile.id}`,
-      }, (p) => this.handleUpdate(p.new as any))
-      .subscribe();
-
-    // Polling fallback — find someone to match with
+    // Poll every 2s — checks both host and client scenarios
     this.pollTimer = setInterval(() => this.poll(), 2000);
+    // Run immediately instead of waiting 2s for first tick
+    this.poll();
   }
 
   private async poll(): Promise<void> {
-    if (this.state !== 'searching' || this.done) return;
-    const row = await api.findOpponent(this.myProfile!.id, this.myProfile!.rank);
-    if (row) await this.becomeHost(row);
-  }
+    if (this.state !== 'searching' || this.done || !this.myProfile) return;
 
-  private async becomeHost(oppRow: any): Promise<void> {
-    if (this.done || !this.myProfile) return;
-    this.done = true;
-    this.clearPoll();
-    this.setState('found');
-
-    // oppRow is a match_queue row — player_id is the auth UUID
-    const oppPlayerId: string = oppRow.player_id;
-    await api.markMatched(this.myProfile.id, oppPlayerId);
-
-    // Fetch full profile so we have correct username/rank/etc.
-    const oppProfile = await api.getProfile(oppPlayerId);
-    if (!oppProfile) { this.setState('failed'); return; }
-
-    this.onMatch?.({ opponent: oppProfile, isHost: true });
-  }
-
-  private async handleUpdate(entry: any): Promise<void> {
-    // We (the client) were matched by the host
-    if (entry.status === 'matched' && entry.matched_with && !this.done) {
-      if (this.state !== 'searching') return;
+    // 1. Check if our own row was matched by someone else (we are the client)
+    const myRow = await api.getQueueEntry(this.myProfile.id);
+    if (myRow?.status === 'matched' && myRow.matched_with) {
       this.done = true;
       this.clearPoll();
       this.setState('found');
-
-      const oppProfile = await api.getProfile(entry.matched_with);
+      const oppProfile = await api.getProfile(myRow.matched_with);
       if (!oppProfile) { this.setState('failed'); return; }
-
       this.onMatch?.({ opponent: oppProfile, isHost: false });
+      return;
+    }
+
+    // 2. Try to find a waiting opponent and become host
+    const oppRow = await api.findOpponent(this.myProfile.id, this.myProfile.rank);
+    if (oppRow) {
+      this.done = true;
+      this.clearPoll();
+      this.setState('found');
+      const oppPlayerId: string = oppRow.player_id;
+      await api.markMatched(this.myProfile.id, oppPlayerId);
+      const oppProfile = await api.getProfile(oppPlayerId);
+      if (!oppProfile) { this.setState('failed'); return; }
+      this.onMatch?.({ opponent: oppProfile, isHost: true });
     }
   }
 
@@ -87,7 +69,6 @@ export class MatchmakingManager {
   async cancel(): Promise<void> {
     this.done = true;
     this.clearPoll();
-    if (this.sub) { await supabase.removeChannel(this.sub); this.sub = null; }
     if (this.myProfile) await api.leaveQueue(this.myProfile.id);
     this.setState('idle');
   }
