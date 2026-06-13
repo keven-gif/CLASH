@@ -4,6 +4,7 @@ import type { RealtimeChannel, RemoteInput } from '@/game/online/RealtimeChannel
 import { useGameStore, CHARACTERS } from '@/store/gameStore';
 import type { Character } from '@/store/gameStore';
 import { GameLoop } from '@/game/GameLoop';
+import type { StateSyncPayload } from '@/game/GameLoop';
 import { InputHandler } from '@/game/InputHandler';
 import { AIController } from '@/game/AIController';
 import { createFighter } from '@/game/Fighter';
@@ -28,6 +29,7 @@ export default function Gameplay() {
   const pauseGame = useGameStore((s) => s.pauseGame);
   const resumeGame = useGameStore((s) => s.resumeGame);
   const onlineMode = useGameStore((s) => s.onlineMode);
+  const isHost = useGameStore((s) => s.isHost);
 
   const storeUser = useGameStore((s) => s.user);
   const matchChannel = useGameStore((s) => s.matchChannel);
@@ -152,11 +154,16 @@ export default function Gameplay() {
     aiRef.current = ai;
 
     // Online mode: reuse the channel already created in LobbyScreen (stored in game store).
-    // Creating a second channel with the same name would throw "cannot add callbacks after
-    // subscribe()" and kill this effect before gameLoop.start() is called.
     if (onlineMode && matchChannel) {
       realtimeRef.current = matchChannel;
       matchChannel.onRemoteInput((inp) => { latestRemoteInput.current = inp; });
+
+      // Client: receive host's authoritative state and snap to it
+      if (!isHost) {
+        matchChannel.onEvent('state_sync', (state: StateSyncPayload) => {
+          gameLoopRef.current?.applyRemoteState(state);
+        });
+      }
     }
 
     // Game loop
@@ -174,6 +181,9 @@ export default function Gameplay() {
         : undefined,
       onLocalInput: onlineMode
         ? (input) => { realtimeRef.current?.sendInput(input); }
+        : undefined,
+      onStateSync: (onlineMode && isHost)
+        ? (state) => { realtimeRef.current?.sendEvent('state_sync', state); }
         : undefined,
       matchTime: timeLimit,
       onDamageUpdate: (player, damage) => {
