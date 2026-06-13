@@ -96,10 +96,15 @@ export default function CharacterSelect() {
           navigatedRef.current = true;
           clearInterval(pollRef.current!);
           if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-          const p1 = CHARACTERS.find(c => c.id === payload.p1CharId);
-          const p2 = CHARACTERS.find(c => c.id === payload.p2CharId);
-          if (p1) selectCharacter(1, p1);
-          if (p2) selectCharacter(2, p2);
+
+          // CLIENT-SIDE: The host wrote p1=host char, p2=client char.
+          // We are the client, so we should see OURSELVES as P1 locally so
+          // GameLoop's "local input → P1, remote input → P2" mapping is correct.
+          const myChar = CHARACTERS.find(c => c.id === payload.p2CharId);   // our char
+          const oppChar = CHARACTERS.find(c => c.id === payload.p1CharId);  // host's char
+          if (myChar) selectCharacter(1, myChar);   // P1 = our own char (local)
+          if (oppChar) selectCharacter(2, oppChar); // P2 = opponent char (remote)
+
           const stage = STAGES.find(s => s.id === payload.stageId) ?? STAGES[0];
           useGameStore.getState().selectStage(stage);
           navigate('/play');

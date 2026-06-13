@@ -349,6 +349,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       selectedStage: null,
       winner: null,
       matchStats: null,
+      // Clear online state so next game starts fresh
+      onlineMode: false,
+      isHost: false,
+      matchOpponent: null,
+      matchChannel: null,
     });
   },
 

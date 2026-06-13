@@ -52,7 +52,10 @@ export class MatchmakingManager {
       await api.markMatched(this.myProfile.id, oppPlayerId);
       const oppProfile = await api.getProfile(oppPlayerId);
       if (!oppProfile) { this.setState('failed'); return; }
-      this.onMatch?.({ opponent: oppProfile, isHost: true });
+      // Tie-breaker: if both players find each other simultaneously, the one with
+      // the lexicographically smaller UUID is host. The other yielded here.
+      const amHost = this.myProfile.id < oppPlayerId;
+      this.onMatch?.({ opponent: oppProfile, isHost: amHost });
     }
   }
 
