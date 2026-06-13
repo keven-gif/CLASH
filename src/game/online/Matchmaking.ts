@@ -1,6 +1,5 @@
 import { supabase, type Profile } from '@/supabase/client';
 import { api } from '@/supabase/api';
-import { NetworkManager } from './NetworkManager';
 
 export type MatchmakingState = 'idle' | 'searching' | 'found' | 'connecting' | 'ready' | 'failed';
 
@@ -11,19 +10,20 @@ export interface MatchFound {
 
 export class MatchmakingManager {
   private state: MatchmakingState = 'idle';
-  private nm = new NetworkManager();
   private myProfile: Profile | null = null;
   private sub: any = null;
-  private onState: ((s: MatchmakingState) => void) | null = null;
+  private onStateCb: ((s: MatchmakingState) => void) | null = null;
   private onMatch: ((m: MatchFound) => void) | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private done = false;
 
   async startSearch(profile: Profile): Promise<void> {
     this.myProfile = profile;
+    this.done = false;
     this.setState('searching');
     await api.joinQueue(profile.id, profile.username, profile.rank);
 
-    // Realtime subscription for queue updates
+    // Realtime subscription — fires when our row is updated to matched
     this.sub = supabase
       .channel('mq_' + profile.id)
       .on('postgres_changes', {
@@ -32,53 +32,45 @@ export class MatchmakingManager {
       }, (p) => this.handleUpdate(p.new as any))
       .subscribe();
 
-    // Polling fallback
-    this.pollTimer = setInterval(() => this.poll(profile), 2000);
+    // Polling fallback — find someone to match with
+    this.pollTimer = setInterval(() => this.poll(), 2000);
   }
 
-  private async poll(profile: Profile): Promise<void> {
-    if (this.state !== 'searching') return;
-    const opp = await api.findOpponent(profile.id, profile.rank);
-    if (opp) await this.becomeHost(opp as Profile);
+  private async poll(): Promise<void> {
+    if (this.state !== 'searching' || this.done) return;
+    const row = await api.findOpponent(this.myProfile!.id, this.myProfile!.rank);
+    if (row) await this.becomeHost(row);
   }
 
-  private async becomeHost(opp: Profile): Promise<void> {
-    if (!this.myProfile) return;
-    this.setState('connecting');
+  private async becomeHost(oppRow: any): Promise<void> {
+    if (this.done || !this.myProfile) return;
+    this.done = true;
     this.clearPoll();
-    const offer = await this.nm.createOffer();
-    await api.markMatched(this.myProfile.id, opp.id, offer);
     this.setState('found');
-    this.onMatch?.({ opponent: opp, isHost: true });
-  }
 
-  private async becomeClient(offer: string, opp: Profile): Promise<void> {
-    this.setState('connecting');
-    this.clearPoll();
-    const answer = await this.nm.acceptOffer(offer);
-    if (this.myProfile) await api.submitAnswer(this.myProfile.id, answer);
-    this.setState('found');
-    this.onMatch?.({ opponent: opp, isHost: false });
-  }
+    // oppRow is a match_queue row — player_id is the auth UUID
+    const oppPlayerId: string = oppRow.player_id;
+    await api.markMatched(this.myProfile.id, oppPlayerId);
 
-  async hostAcceptAnswer(answer: string): Promise<void> {
-    await this.nm.acceptAnswer(answer);
-    this.setState('ready');
+    // Fetch full profile so we have correct username/rank/etc.
+    const oppProfile = await api.getProfile(oppPlayerId);
+    if (!oppProfile) { this.setState('failed'); return; }
+
+    this.onMatch?.({ opponent: oppProfile, isHost: true });
   }
 
   private async handleUpdate(entry: any): Promise<void> {
-    if (entry.status === 'matched' && entry.matched_with && !entry.webrtc_offer) {
-      setTimeout(async () => {
-        const fresh = await api.getQueueEntry(entry.player_id);
-        if (fresh?.webrtc_offer) {
-          const { data } = await supabase.from('profiles').select('*').eq('id', entry.matched_with).single();
-          if (data) await this.becomeClient(fresh.webrtc_offer, data as Profile);
-        }
-      }, 500);
-    }
-    if (entry.status === 'matched' && entry.webrtc_answer) {
-      await this.nm.acceptAnswer(entry.webrtc_answer);
-      this.setState('ready');
+    // We (the client) were matched by the host
+    if (entry.status === 'matched' && entry.matched_with && !this.done) {
+      if (this.state !== 'searching') return;
+      this.done = true;
+      this.clearPoll();
+      this.setState('found');
+
+      const oppProfile = await api.getProfile(entry.matched_with);
+      if (!oppProfile) { this.setState('failed'); return; }
+
+      this.onMatch?.({ opponent: oppProfile, isHost: false });
     }
   }
 
@@ -86,18 +78,17 @@ export class MatchmakingManager {
     if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
   }
 
-  private setState(s: MatchmakingState): void { this.state = s; this.onState?.(s); }
+  private setState(s: MatchmakingState): void { this.state = s; this.onStateCb?.(s); }
 
-  getNetworkManager(): NetworkManager { return this.nm; }
   getState(): MatchmakingState { return this.state; }
-  onStateChange(cb: (s: MatchmakingState) => void): void { this.onState = cb; }
+  onStateChange(cb: (s: MatchmakingState) => void): void { this.onStateCb = cb; }
   onMatchFound(cb: (m: MatchFound) => void): void { this.onMatch = cb; }
 
   async cancel(): Promise<void> {
+    this.done = true;
     this.clearPoll();
     if (this.sub) { await supabase.removeChannel(this.sub); this.sub = null; }
     if (this.myProfile) await api.leaveQueue(this.myProfile.id);
-    this.nm.disconnect();
     this.setState('idle');
   }
 

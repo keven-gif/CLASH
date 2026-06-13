@@ -64,8 +64,8 @@ export const api = {
     return data?.[0] ?? null;
   },
 
-  async markMatched(playerId: string, opponentId: string, offer: string) {
-    await supabase.from('match_queue').update({ status: 'matched', matched_with: opponentId, webrtc_offer: offer }).eq('player_id', playerId);
+  async markMatched(playerId: string, opponentId: string) {
+    await supabase.from('match_queue').update({ status: 'matched', matched_with: opponentId }).eq('player_id', playerId);
     await supabase.from('match_queue').update({ status: 'matched', matched_with: playerId }).eq('player_id', opponentId);
   },
 
