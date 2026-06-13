@@ -22,21 +22,20 @@ export function preloadCharacterImages(): void {
   loadCharacterImage('ronin', `${base}characters/ronin.jpg?v=2`);
   loadCharacterImage('alchemist', `${base}characters/alchemist.png?v=2`);
   loadCharacterImage('gunner', `${base}characters/gunner.png?v=2`);
-  loadCharacterImage('gunner-sheet', `${base}characters/blaze-sheet.png?v=1`);
-  loadCharacterImage('swordsman-sheet', `${base}characters/ace-sheet.png?v=1`);
-  loadCharacterImage('assassin-sheet', `${base}characters/shadow-sheet.png?v=1`);
-  loadCharacterImage('ronin-sheet', `${base}characters/kaze-sheet.png?v=1`);
-  loadCharacterImage('alchemist-sheet', `${base}characters/mix-sheet.png?v=1`);
+  loadCharacterImage('gunner-sheet', `${base}characters/blaze-sheet-clean.png?v=2`);
+  loadCharacterImage('swordsman-sheet', `${base}characters/ace-sheet-clean.png?v=2`);
+  loadCharacterImage('assassin-sheet', `${base}characters/shadow-sheet-clean.png?v=2`);
+  loadCharacterImage('ronin-sheet', `${base}characters/kaze-sheet-clean.png?v=2`);
+  loadCharacterImage('alchemist-sheet', `${base}characters/mix-sheet-clean.png?v=2`);
 }
 
 // ─── Sprite Sheet Config ─────────────────────────────────────────────
-// All character sheets share the same layout:
-// 1376×768, 8 cols × 3 rows → each frame 172×256 px
+// Clean sheets: 952×549, 8 cols × 3 rows → each frame 119×183 px
 // Row 0 = walk/idle, Row 1 = attack/hit, Row 2 = jump/fall
 
 const SPRITE_SHEET_COLS = 8;
-const SPRITE_FRAME_W = 172;
-const SPRITE_FRAME_H = 256;
+const SPRITE_FRAME_W = 119;
+const SPRITE_FRAME_H = 183;
 const SPRITE_FRAME_RATE = 5; // game-frames per sprite-frame (~12 fps)
 
 // Characters that use sprite sheets: maps characterId → image cache key
