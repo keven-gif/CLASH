@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Zap, Sword, Shield, Sparkles, Loader } from 
 import { useGameStore, CHARACTERS, STAGES } from '@/store/gameStore';
 import type { Character } from '@/store/gameStore';
 import { audioManager } from '@/audio/AudioManager';
+import { supabase } from '@/supabase/client';
 // ─── Stat Bar ────────────────────────────────────────────────────────
 
 function StatBar({ label, value, maxValue, color, icon }: {
@@ -52,48 +53,58 @@ export default function CharacterSelect() {
   }, []);
 
   const navigatedRef = useRef(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── Online: Presence for character sync (reliable on late join) ──────
+  // ── Online: DB poll — write on select, poll opponent's row ───────────
   useEffect(() => {
-    if (!onlineMode || !matchChannel) return;
+    if (!onlineMode || !matchOpponent) return;
+    const myId = useGameStore.getState().user?.id;
+    if (!myId) return;
 
-    // Presence fires immediately on subscribe AND when anyone updates —
-    // no race condition possible
-    matchChannel.onPresenceSync((state) => {
-      const myId = useGameStore.getState().user?.id;
-      Object.entries(state).forEach(([key, metas]) => {
-        const meta = (metas as any[])[0];
-        if (!meta || key === myId) return;
-        if (meta.charId) {
-          setOpponentCharId(meta.charId);
+    pollRef.current = setInterval(async () => {
+      const { data } = await supabase
+        .from('match_queue')
+        .select('webrtc_offer')
+        .eq('player_id', matchOpponent.id)
+        .single();
+      if (!data?.webrtc_offer) return;
+      try {
+        const payload = JSON.parse(data.webrtc_offer);
+        if (payload.charId) {
+          setOpponentCharId(payload.charId);
           setOpponentReady(true);
         }
-      });
-    });
+        if (payload.start && !navigatedRef.current) {
+          navigatedRef.current = true;
+          clearInterval(pollRef.current!);
+          const p1 = CHARACTERS.find(c => c.id === payload.p1CharId);
+          const p2 = CHARACTERS.find(c => c.id === payload.p2CharId);
+          if (p1) selectCharacter(1, p1);
+          if (p2) selectCharacter(2, p2);
+          const stage = STAGES.find(s => s.id === payload.stageId) ?? STAGES[0];
+          useGameStore.getState().selectStage(stage);
+          navigate('/play');
+        }
+      } catch { /* skip bad JSON */ }
+    }, 1500);
 
-    // MATCH_START is one-time broadcast from host
-    matchChannel.onEvent('MATCH_START', ({ p1CharId, p2CharId, stageId }: any) => {
-      if (navigatedRef.current) return;
-      navigatedRef.current = true;
-      const p1 = CHARACTERS.find(c => c.id === p1CharId);
-      const p2 = CHARACTERS.find(c => c.id === p2CharId);
-      if (p1) selectCharacter(1, p1);
-      if (p2) selectCharacter(2, p2);
-      const stage = STAGES.find(s => s.id === stageId) ?? STAGES[0];
-      useGameStore.getState().selectStage(stage);
-      navigate('/play');
-    });
-  }, [onlineMode, matchChannel, selectCharacter, navigate]);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [onlineMode, matchOpponent, selectCharacter, navigate]);
 
   // ─── Offline: assign CPU ──────────────────────────────────────────
   const handleSelect = useCallback((char: Character) => {
     if (onlineMode) {
-      // Online: set own character and publish via Presence (opponent gets it
-      // immediately even if they joined after us)
+      // Online: write character choice to own match_queue row
+      const myId = useGameStore.getState().user?.id;
+      if (myId) {
+        supabase.from('match_queue')
+          .update({ webrtc_offer: JSON.stringify({ charId: char.id }) })
+          .eq('player_id', myId)
+          .then(() => {});
+      }
       selectCharacter(1, char);
       setMyReady(true);
       setStatusMsg('Waiting for opponent...');
-      matchChannel?.trackPresence({ charId: char.id, ready: true });
     } else {
       // Offline: pick P1, assign random CPU as P2
       selectCharacter(1, char);
@@ -103,22 +114,34 @@ export default function CharacterSelect() {
   }, [onlineMode, selectCharacter, matchChannel]);
 
   // ─── Host starts the match once both are ready ───────────────────
-  const handleHostStart = useCallback(() => {
-    if (!isHost || !matchChannel || !player1Character || !opponentCharId) return;
+  const handleHostStart = useCallback(async () => {
+    if (!isHost || !player1Character || !opponentCharId) return;
+    if (navigatedRef.current) return;
+    navigatedRef.current = true;
 
-    // Pick a stage (battlefield by default for online)
     const stageId = 'battlefield';
+    const myId = useGameStore.getState().user?.id;
+
+    // Write start signal to DB so client's poll picks it up
+    if (myId) {
+      await supabase.from('match_queue')
+        .update({ webrtc_offer: JSON.stringify({
+          charId: player1Character.id,
+          start: true,
+          p1CharId: player1Character.id,
+          p2CharId: opponentCharId,
+          stageId,
+        })})
+        .eq('player_id', myId);
+    }
+
+    const p2 = CHARACTERS.find(c => c.id === opponentCharId);
+    if (p2) selectCharacter(2, p2);
     const stage = STAGES.find(s => s.id === stageId) ?? STAGES[0];
     useGameStore.getState().selectStage(stage);
-    const p2Char2 = CHARACTERS.find(c => c.id === opponentCharId)!;
-    if (p2Char2) selectCharacter(2, p2Char2);
-    matchChannel.sendEvent('MATCH_START', {
-      p1CharId: player1Character.id,
-      p2CharId: opponentCharId,
-      stageId,
-    });
+    if (pollRef.current) clearInterval(pollRef.current);
     navigate('/play');
-  }, [isHost, matchChannel, player1Character, opponentCharId, selectCharacter, navigate]);
+  }, [isHost, player1Character, opponentCharId, selectCharacter, navigate]);
 
   // ─── Offline fight ───────────────────────────────────────────────
   const handleFight = useCallback(() => {
