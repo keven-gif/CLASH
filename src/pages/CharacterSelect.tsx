@@ -52,6 +52,10 @@ export default function CharacterSelect() {
     audioManager.playMusic('music-title');
   }, []);
 
+  // Refs to access current state inside interval/event callbacks
+  const myReadyRef = useRef(false);
+  const myCharIdRef = useRef<string | null>(null);
+
   // ── Online: listen for opponent events ────────────────────────────
   useEffect(() => {
     if (!onlineMode || !matchChannel) return;
@@ -60,6 +64,13 @@ export default function CharacterSelect() {
     matchChannel.onEvent('CHAR_READY', ({ charId }: { charId: string }) => {
       setOpponentCharId(charId);
       setOpponentReady(true);
+    });
+
+    // If opponent asks for our state (because they joined late), re-send if ready
+    matchChannel.onEvent('REQUEST_STATE', () => {
+      if (myReadyRef.current && myCharIdRef.current) {
+        matchChannel.sendEvent('CHAR_READY', { charId: myCharIdRef.current });
+      }
     });
 
     // Host broadcast the match start (client receives this)
@@ -72,6 +83,24 @@ export default function CharacterSelect() {
       useGameStore.getState().selectStage(stage);
       navigate('/play');
     });
+
+    // Ask opponent for their current state (handles the race where they sent
+    // CHAR_READY before we finished subscribing)
+    const askTimer = setTimeout(() => {
+      matchChannel.sendEvent('REQUEST_STATE', {});
+    }, 800);
+
+    // Retry: re-send our own ready state every 2s until opponent confirmed
+    const retryInterval = setInterval(() => {
+      if (myReadyRef.current && myCharIdRef.current) {
+        matchChannel.sendEvent('CHAR_READY', { charId: myCharIdRef.current });
+      }
+    }, 2000);
+
+    return () => {
+      clearTimeout(askTimer);
+      clearInterval(retryInterval);
+    };
   }, [onlineMode, matchChannel, selectCharacter, navigate]);
 
   // ─── Offline: assign CPU ──────────────────────────────────────────
@@ -80,6 +109,8 @@ export default function CharacterSelect() {
       // Online: set own character and signal ready
       selectCharacter(1, char);
       setMyReady(true);
+      myReadyRef.current = true;
+      myCharIdRef.current = char.id;
       setStatusMsg('Waiting for opponent...');
       matchChannel?.sendEvent('CHAR_READY', { charId: char.id });
     } else {
