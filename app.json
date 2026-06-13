@@ -23,7 +23,12 @@
       "package": "com.clash.battlegame"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "static",
+      "name": "CLASH",
+      "shortName": "CLASH",
+      "description": "1v1 multiplayer battle game"
     },
     "plugins": [
       [
