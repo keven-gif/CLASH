@@ -62,6 +62,8 @@ export interface MatchResult {
 
 // ─── Hardcoded Data ──────────────────────────────────────────────────
 
+const BASE = import.meta.env.BASE_URL;
+
 export const CHARACTERS: Character[] = [
   {
     id: 'assassin',
@@ -69,7 +71,7 @@ export const CHARACTERS: Character[] = [
     accentColor: '#E81D2D',
     archetype: 'Rushdown',
     stats: { power: 4, speed: 5, defense: 2, special: 4, weight: 'Light' },
-    image: '/characters/assassin.png?v=2',
+    image: `${BASE}characters/assassin.png?v=2`,
     description: 'A swift assassin wielding a crimson energy blade.',
   },
   {
@@ -78,7 +80,7 @@ export const CHARACTERS: Character[] = [
     accentColor: '#00E5D4',
     archetype: 'All-Rounder',
     stats: { power: 3, speed: 4, defense: 4, special: 3, weight: 'Medium' },
-    image: '/characters/swordsman.png?v=2',
+    image: `${BASE}characters/swordsman.png?v=2`,
     description: 'A balanced adventurer with a cyan energy sword.',
   },
   {
@@ -87,7 +89,7 @@ export const CHARACTERS: Character[] = [
     accentColor: '#4DA6FF',
     archetype: 'Rushdown',
     stats: { power: 4, speed: 5, defense: 2, special: 3, weight: 'Light' },
-    image: '/characters/ronin.jpg?v=2',
+    image: `${BASE}characters/ronin.jpg?v=2`,
     description: 'A lightning-fast ronin with an ice-blue blade.',
   },
   {
@@ -96,7 +98,7 @@ export const CHARACTERS: Character[] = [
     accentColor: '#39FF14',
     archetype: 'Zoner',
     stats: { power: 3, speed: 3, defense: 3, special: 5, weight: 'Medium' },
-    image: '/characters/alchemist.png?v=2',
+    image: `${BASE}characters/alchemist.png?v=2`,
     description: 'A tricky alchemist who bombards foes with potions.',
   },
   {
@@ -105,7 +107,7 @@ export const CHARACTERS: Character[] = [
     accentColor: '#FF8C00',
     archetype: 'Gunner',
     stats: { power: 4, speed: 3, defense: 3, special: 4, weight: 'Medium' },
-    image: '/characters/gunner.png?v=2',
+    image: `${BASE}characters/gunner.png?v=2`,
     description: 'A sharpshooting dual-pistol marksman who dominates from mid-range.',
   },
 ];
@@ -114,21 +116,21 @@ export const STAGES: Stage[] = [
   {
     id: 'battlefield',
     name: 'Battlefield',
-    image: '/stages/stage-battlefield.jpg?v=2',
+    image: `${BASE}stages/stage-battlefield.jpg?v=2`,
     description: 'A balanced stage with three platforms. Perfect for competitive play.',
     hasHazards: false,
   },
   {
     id: 'final',
     name: 'Final Destination',
-    image: '/stages/stage-final-destination.jpg?v=2',
+    image: `${BASE}stages/stage-final-destination.jpg?v=2`,
     description: 'A single flat platform in the void. No platforms, pure skill.',
     hasHazards: false,
   },
   {
     id: 'hazard',
     name: 'Factory Floor',
-    image: '/stages/stage-hazard.jpg?v=2',
+    image: `${BASE}stages/stage-hazard.jpg?v=2`,
     description: 'An industrial stage with moving hazards. Watch your step!',
     hasHazards: true,
   },

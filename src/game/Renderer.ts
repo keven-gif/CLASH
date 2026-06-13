@@ -16,11 +16,12 @@ function loadCharacterImage(characterId: string, src: string): HTMLImageElement 
 }
 
 export function preloadCharacterImages(): void {
-  loadCharacterImage('assassin', '/characters/assassin.png?v=2');
-  loadCharacterImage('swordsman', '/characters/swordsman.png?v=2');
-  loadCharacterImage('ronin', '/characters/ronin.jpg?v=2');
-  loadCharacterImage('alchemist', '/characters/alchemist.png?v=2');
-  loadCharacterImage('gunner', '/characters/gunner.png?v=2');
+  const base = import.meta.env.BASE_URL;
+  loadCharacterImage('assassin', `${base}characters/assassin.png?v=2`);
+  loadCharacterImage('swordsman', `${base}characters/swordsman.png?v=2`);
+  loadCharacterImage('ronin', `${base}characters/ronin.jpg?v=2`);
+  loadCharacterImage('alchemist', `${base}characters/alchemist.png?v=2`);
+  loadCharacterImage('gunner', `${base}characters/gunner.png?v=2`);
 }
 
 // ─── Stage Background Image Cache ────────────────────────────────────
@@ -36,9 +37,10 @@ function loadStageImage(stageId: string, src: string): HTMLImageElement {
 }
 
 export function preloadStageImages(): void {
-  loadStageImage('battlefield', '/stages/stage-battlefield.jpg?v=2');
-  loadStageImage('final', '/stages/stage-final-destination.jpg?v=2');
-  loadStageImage('hazard', '/stages/stage-hazard.jpg?v=2');
+  const base = import.meta.env.BASE_URL;
+  loadStageImage('battlefield', `${base}stages/stage-battlefield.jpg?v=2`);
+  loadStageImage('final', `${base}stages/stage-final-destination.jpg?v=2`);
+  loadStageImage('hazard', `${base}stages/stage-hazard.jpg?v=2`);
 }
 
 // ─── Character Placeholder Colors (fallback while images load) ───────
