@@ -6,7 +6,7 @@ import {
   Send, User, Wifi, WifiOff, Loader, Shield, Swords
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { MatchmakingManager, WebSocketManager } from '@/game/online';
+import { MatchmakingManager } from '@/game/online';
 import type { MatchFound, MatchmakingState } from '@/game/online';
 import { CHARACTERS, useGameStore } from '@/store/gameStore';
 
@@ -28,7 +28,6 @@ export default function LobbyScreen() {
 
   // MatchmakingManager & WebSocket
   const mmRef = useRef<MatchmakingManager | null>(null);
-  const wsRef = useRef<WebSocketManager | null>(null);
   const [mmState, setMmState] = useState<MatchmakingState>('idle');
 
   // UI State
@@ -92,26 +91,11 @@ export default function LobbyScreen() {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
 
-    // Destroy any existing matchmaking connection before creating a new one (H6)
+    // Destroy any existing matchmaking connection before creating a new one
     mmRef.current?.destroy();
-    wsRef.current?.disconnect();
 
     const mm = new MatchmakingManager();
     mmRef.current = mm;
-
-    const ws = new WebSocketManager();
-    wsRef.current = ws;
-    ws.on('error', (code: string, message: string) => {
-      console.error('[WS]', code, message);
-    });
-    ws.on('statusChange', (status: string) => {
-      if (status === 'error') {
-        setError('Failed to connect to game server');
-        setScreen('menu');
-      }
-    });
-    ws.connect(user.id);
-    ws.authenticate(user.id, user.username);
 
     mm.onStateChange((s: MatchmakingState) => {
       setMmState(s);
@@ -147,7 +131,6 @@ export default function LobbyScreen() {
     if (timerRef.current) clearInterval(timerRef.current);
     if (cdTimerRef.current) clearInterval(cdTimerRef.current);
     await mmRef.current?.cancel();
-    wsRef.current?.disconnect();
     setCountdown(0);
     setOpponent(null);
     setIsReady(false);
@@ -166,15 +149,12 @@ export default function LobbyScreen() {
   }, []);
 
   const handleReady = useCallback(() => {
-    const newReady = !isReady;
-    setIsReady(newReady);
-    wsRef.current?.setReady(newReady);
-  }, [isReady]);
+    setIsReady(r => !r);
+  }, []);
 
   const handleSendChat = useCallback(() => {
     if (chatInput.trim() && user) {
       setChatMessages(prev => [...prev, { playerId: user.id, username: user.username, message: chatInput.trim() }]);
-      wsRef.current?.sendChat(chatInput.trim());
       setChatInput('');
     }
   }, [chatInput, user]);
@@ -183,7 +163,6 @@ export default function LobbyScreen() {
     if (timerRef.current) clearInterval(timerRef.current);
     if (cdTimerRef.current) clearInterval(cdTimerRef.current);
     await mmRef.current?.cancel();
-    wsRef.current?.disconnect();
     setScreen('menu');
     setIsReady(false);
     setLobbyPlayers([]);
@@ -242,7 +221,6 @@ export default function LobbyScreen() {
       if (timerRef.current) clearInterval(timerRef.current);
       if (cdTimerRef.current) clearInterval(cdTimerRef.current);
       mmRef.current?.destroy();
-      wsRef.current?.disconnect();
     };
   }, []);
 
