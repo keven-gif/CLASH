@@ -26,12 +26,13 @@ export default function Gameplay() {
   const restartMatch = useGameStore((s) => s.restartMatch);
   const endMatch = useGameStore((s) => s.endMatch);
   const loseStock = useGameStore((s) => s.loseStock);
+  const stockCount = useGameStore((s) => s.stockCount);
 
   // ── Local state ────────────────────────────────────────────────────
   const [p1Damage, setP1Damage] = useState(0);
   const [p2Damage, setP2Damage] = useState(0);
-  const [p1Stocks, setP1Stocks] = useState(3);
-  const [p2Stocks, setP2Stocks] = useState(3);
+  const [p1Stocks, setP1Stocks] = useState(stockCount);
+  const [p2Stocks, setP2Stocks] = useState(stockCount);
   const [timer, setTimer] = useState(timeLimit);
   const [countdown, setCountdown] = useState(3);
   const [isPaused, setIsPaused] = useState(false);
@@ -62,14 +63,16 @@ export default function Gameplay() {
     // Set backing store to DPR size for sharp rendering on retina displays
     canvas.width = window.innerWidth * dpr;
     canvas.height = window.innerHeight * dpr;
-    // CSS handles the display scaling - do NOT ctx.scale() here or all
-    // coordinates get double-multiplied and render off-screen
     canvas.style.width = `${window.innerWidth}px`;
     canvas.style.height = `${window.innerHeight}px`;
-    // Reset transform to identity (setting canvas dimensions resets context state,
-    // but we explicitly reset to be safe). All rendering uses backing-store pixels.
+    // Scale ctx so all draw calls use logical (CSS) pixel coordinates.
+    // Without this, on Retina/high-DPI devices content renders in the
+    // top-left 1/dpr² of the screen instead of filling it.
     const ctx = canvas.getContext('2d');
-    if (ctx) ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (ctx) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+    }
   }, []);
 
   // ── Register joystick zone with InputHandler ────────────────────────
@@ -120,8 +123,8 @@ export default function Gameplay() {
     const p2 = createFighter(p2Character.id, p2Spawn);
     p1.direction = 1;
     p2.direction = -1;
-    p1.stocks = 3;
-    p2.stocks = 3;
+    p1.stocks = stockCount;
+    p2.stocks = stockCount;
     fightersRef.current = { p1, p2 };
 
     // Input

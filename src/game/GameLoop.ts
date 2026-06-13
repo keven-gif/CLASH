@@ -549,12 +549,13 @@ export class GameLoop {
   // ── Camera ─────────────────────────────────────────────────────────
 
   private updateCamera(): void {
+    const dpr = window.devicePixelRatio || 1;
     updateCamera(
       this.camera,
       this.player1.isDead ? this.player2.position : this.player1.position,
       this.player2.isDead ? this.player1.position : this.player2.position,
-      this.canvas.width,
-      this.canvas.height,
+      this.canvas.width / dpr,
+      this.canvas.height / dpr,
       this.stage
     );
   }
@@ -594,8 +595,9 @@ export class GameLoop {
 
   private render(): void {
     const ctx = this.ctx;
-    const w = this.canvas.width;
-    const h = this.canvas.height;
+    const dpr = window.devicePixelRatio || 1;
+    const w = this.canvas.width / dpr;
+    const h = this.canvas.height / dpr;
 
     ctx.clearRect(0, 0, w, h);
 

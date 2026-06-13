@@ -46,7 +46,7 @@ export default function QueueScreen() {
         setCountdown(c);
         if (c <= 0) {
           clearInterval(cdTimer);
-          navigate('/select', { state: { onlineMode: true, isHost: match.isHost, opponent: match.opponent } });
+          navigate('/play', { state: { onlineMode: true, isHost: match.isHost, opponent: match.opponent } });
         }
       }, 1000);
     });

@@ -68,6 +68,9 @@ export function useAuth() {
       } else {
         setLoading(false);
       }
+    }).catch((err) => {
+      console.error('[useAuth] getSession failed:', err);
+      setLoading(false);
     });
 
     // Subscribe to auth changes
