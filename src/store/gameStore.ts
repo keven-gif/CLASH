@@ -173,6 +173,8 @@ interface GameState {
   setUser: (user: Profile | null) => void;
   onlineMode: boolean;
   setOnlineMode: (mode: boolean) => void;
+  isHost: boolean;
+  setIsHost: (isHost: boolean) => void;
   matchOpponent: Profile | null;
   setMatchOpponent: (opponent: Profile | null) => void;
 
@@ -226,6 +228,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   setUser: (user) => set({ user }),
   onlineMode: false,
   setOnlineMode: (mode) => set({ onlineMode: mode }),
+  isHost: false,
+  setIsHost: (isHost) => set({ isHost }),
   matchOpponent: null,
   setMatchOpponent: (opponent) => set({ matchOpponent: opponent }),
 

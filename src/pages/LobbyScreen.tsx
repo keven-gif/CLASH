@@ -24,7 +24,7 @@ interface LobbyPlayer {
 export default function LobbyScreen() {
   const navigate = useNavigate();
   const { user, signOut, loading: authLoading } = useAuth();
-  const { selectCharacter, setOnlineMode } = useGameStore();
+  const { selectCharacter, setOnlineMode, setIsHost, setMatchOpponent } = useGameStore();
 
   // MatchmakingManager & WebSocket
   const mmRef = useRef<MatchmakingManager | null>(null);
@@ -118,7 +118,9 @@ export default function LobbyScreen() {
           const chosenChar = CHARACTERS.find(ch => ch.id === selectedCharacterRef.current) ?? CHARACTERS[0];
           selectCharacter(1, chosenChar);
           setOnlineMode(true);
-          navigate('/select', { state: { onlineMode: true, isHost: match.isHost, opponent: match.opponent } });
+          setIsHost(match.isHost);
+          setMatchOpponent(match.opponent);
+          navigate('/stage');
         }
       }, 1000);
     });

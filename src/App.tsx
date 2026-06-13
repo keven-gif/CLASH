@@ -1,5 +1,7 @@
 import { Routes, Route } from 'react-router'
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
+import { useAuth } from '@/hooks/useAuth'
+import { useGameStore } from '@/store/gameStore'
 
 const TitleScreen = lazy(() => import('./pages/TitleScreen'))
 const CharacterSelect = lazy(() => import('./pages/CharacterSelect'))
@@ -24,9 +26,17 @@ function LoadingFallback() {
   )
 }
 
+function AuthSync() {
+  const { user } = useAuth();
+  const setUser = useGameStore((s) => s.setUser);
+  useEffect(() => { setUser(user); }, [user, setUser]);
+  return null;
+}
+
 export default function App() {
   return (
     <Suspense fallback={<LoadingFallback />}>
+      <AuthSync />
       <Routes>
         <Route path="/" element={<TitleScreen />} />
         <Route path="/select" element={<CharacterSelect />} />

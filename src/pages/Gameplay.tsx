@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router';
-import { NetworkManager } from '@/game/online/NetworkManager';
-import type { NetworkInput } from '@/game/online/NetworkManager';
+import { useNavigate } from 'react-router';
+import { RealtimeChannel } from '@/game/online/RealtimeChannel';
+import type { RemoteInput } from '@/game/online/RealtimeChannel';
 import { useGameStore, CHARACTERS } from '@/store/gameStore';
 import type { Character } from '@/store/gameStore';
 import { GameLoop } from '@/game/GameLoop';
@@ -15,11 +15,9 @@ import { Pause, Swords, Shield, Hand, ChevronUp } from 'lucide-react';
 
 export default function Gameplay() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const onlineMode = (location.state as any)?.onlineMode === true;
-  const isHost = (location.state as any)?.isHost === true;
-  const networkRef = useRef<NetworkManager | null>(null);
-  const latestRemoteInput = useRef<NetworkInput | null>(null);
+
+  const realtimeRef = useRef<RealtimeChannel | null>(null);
+  const latestRemoteInput = useRef<RemoteInput | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const joystickZoneRef = useRef<HTMLDivElement>(null);
 
@@ -30,6 +28,10 @@ export default function Gameplay() {
   const timeLimit = useGameStore((s) => s.timeLimit);
   const pauseGame = useGameStore((s) => s.pauseGame);
   const resumeGame = useGameStore((s) => s.resumeGame);
+  const onlineMode = useGameStore((s) => s.onlineMode);
+
+  const matchOpponent = useGameStore((s) => s.matchOpponent);
+  const storeUser = useGameStore((s) => s.user);
 
   const endMatch = useGameStore((s) => s.endMatch);
   const loseStock = useGameStore((s) => s.loseStock);
@@ -150,21 +152,12 @@ export default function Gameplay() {
     const ai = new AIController('medium');
     aiRef.current = ai;
 
-    // Online mode: wire NetworkManager for P2 input
-    if (onlineMode) {
-      const nm = new NetworkManager();
-      networkRef.current = nm;
-      nm.onRemoteInput((inp: NetworkInput) => { latestRemoteInput.current = inp; });
-      // Kick off WebRTC handshake — errors are non-fatal; game falls back to AI
-      (async () => {
-        try {
-          if (isHost) {
-            await nm.createOffer();
-          }
-        } catch {
-          // WebRTC setup failed, falling back to AI
-        }
-      })();
+    // Online mode: use Supabase Realtime broadcast to sync opponent input
+    if (onlineMode && storeUser && matchOpponent) {
+      const matchId = [storeUser.id, matchOpponent.id].sort().join('_');
+      const rc = new RealtimeChannel(matchId, storeUser.id);
+      realtimeRef.current = rc;
+      rc.onRemoteInput((inp) => { latestRemoteInput.current = inp; });
     }
 
     // Game loop
@@ -181,7 +174,7 @@ export default function Gameplay() {
         ? () => latestRemoteInput.current
         : undefined,
       onLocalInput: onlineMode
-        ? (input) => { networkRef.current?.sendInput(input); }
+        ? (input) => { realtimeRef.current?.sendInput(input); }
         : undefined,
       matchTime: timeLimit,
       onDamageUpdate: (player, damage) => {
@@ -236,7 +229,7 @@ export default function Gameplay() {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       gameLoop.destroy();
-      networkRef.current?.disconnect();
+      realtimeRef.current?.disconnect();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
