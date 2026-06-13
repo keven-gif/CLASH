@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { motion } from 'framer-motion';
 import { Mail, Lock, User, ArrowRight, Zap } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/supabase/client';
 
 export default function Auth() {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
@@ -11,6 +12,9 @@ export default function Auth() {
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -29,14 +33,61 @@ export default function Auth() {
     setError('');
     setLoading(true);
     try {
-      if (mode === 'signup') await signUp(email, password, username);
-      else await signIn(email, password);
+      if (forgotMode) {
+        await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/#/auth' });
+        setResetSent(true);
+        setLoading(false);
+        return;
+      }
+      if (mode === 'signup') {
+        await signUp(email, password, username);
+        setEmailSent(true);
+        setLoading(false);
+        return;
+      }
+      await signIn(email, password);
       // Navigation is handled by the useEffect above — DO NOT navigate here
     } catch (err: any) {
       setError(err.message || 'Authentication failed. Check your email and password.');
     }
     setLoading(false);
   };
+
+  if (emailSent) {
+    return (
+      <div className="w-screen h-screen bg-void flex flex-col items-center justify-center p-6 select-none">
+        <Mail size={48} className="text-accent-cyan mb-4" />
+        <h2 className="font-orbitron font-bold text-[22px] text-text-primary mb-2">CHECK YOUR EMAIL</h2>
+        <p className="font-rajdhani text-[15px] text-text-secondary text-center max-w-[320px] mb-6">
+          We sent a confirmation link to <span className="text-accent-cyan">{email}</span>. Click it to activate your account.
+        </p>
+        <button
+          onClick={() => { setEmailSent(false); setMode('login'); }}
+          className="font-rajdhani text-[14px] text-text-muted hover:text-accent-cyan transition-colors"
+        >
+          Back to sign in
+        </button>
+      </div>
+    );
+  }
+
+  if (resetSent) {
+    return (
+      <div className="w-screen h-screen bg-void flex flex-col items-center justify-center p-6 select-none">
+        <Mail size={48} className="text-accent-cyan mb-4" />
+        <h2 className="font-orbitron font-bold text-[22px] text-text-primary mb-2">RESET EMAIL SENT</h2>
+        <p className="font-rajdhani text-[15px] text-text-secondary text-center max-w-[320px] mb-6">
+          Check <span className="text-accent-cyan">{email}</span> for a password reset link.
+        </p>
+        <button
+          onClick={() => { setResetSent(false); setForgotMode(false); }}
+          className="font-rajdhani text-[14px] text-text-muted hover:text-accent-cyan transition-colors"
+        >
+          Back to sign in
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="w-screen h-screen bg-void overflow-hidden select-none flex flex-col md:flex-row">
@@ -65,7 +116,7 @@ export default function Auth() {
         transition={{ duration: 0.5, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
       >
         <h2 className="font-orbitron font-bold text-[22px] text-text-primary mb-6">
-          {mode === 'login' ? 'WELCOME BACK' : 'CREATE ACCOUNT'}
+          {forgotMode ? 'RESET PASSWORD' : mode === 'login' ? 'WELCOME BACK' : 'CREATE ACCOUNT'}
         </h2>
 
         {error && (
@@ -78,7 +129,7 @@ export default function Auth() {
         )}
 
         <form onSubmit={handleSubmit} className="w-full max-w-[360px] space-y-4">
-          {mode === 'signup' && (
+          {mode === 'signup' && !forgotMode && (
             <div className="relative">
               <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
               <input
@@ -96,14 +147,16 @@ export default function Auth() {
               required
             />
           </div>
-          <div className="relative">
-            <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-            <input
-              type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)}
-              className="w-full h-12 pl-10 pr-4 rounded-xl bg-bg-elevated border border-border-subtle text-text-primary font-rajdhani text-[16px] placeholder:text-text-muted focus:border-accent-cyan focus:outline-none transition-colors"
-              required minLength={6}
-            />
-          </div>
+          {!forgotMode && (
+            <div className="relative">
+              <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+              <input
+                type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)}
+                className="w-full h-12 pl-10 pr-4 rounded-xl bg-bg-elevated border border-border-subtle text-text-primary font-rajdhani text-[16px] placeholder:text-text-muted focus:border-accent-cyan focus:outline-none transition-colors"
+                required minLength={6}
+              />
+            </div>
+          )}
 
           <motion.button
             type="submit" disabled={loading}
@@ -112,18 +165,40 @@ export default function Auth() {
           >
             {loading ? (
               <div className="w-5 h-5 border-2 border-bg-dark/30 border-t-bg-dark rounded-full animate-spin" />
+            ) : forgotMode ? (
+              <>SEND RESET LINK <ArrowRight size={18} /></>
             ) : (
               <>{mode === 'login' ? 'SIGN IN' : 'CREATE ACCOUNT'} <ArrowRight size={18} /></>
             )}
           </motion.button>
         </form>
 
-        <button
-          onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); }}
-          className="mt-6 font-rajdhani text-[14px] text-text-muted hover:text-accent-cyan transition-colors"
-        >
-          {mode === 'login' ? "No account? Sign up" : "Already have an account? Sign in"}
-        </button>
+        {!forgotMode && (
+          <button
+            onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); }}
+            className="mt-6 font-rajdhani text-[14px] text-text-muted hover:text-accent-cyan transition-colors"
+          >
+            {mode === 'login' ? "No account? Sign up" : "Already have an account? Sign in"}
+          </button>
+        )}
+
+        {mode === 'login' && !forgotMode && (
+          <button
+            onClick={() => { setForgotMode(true); setError(''); }}
+            className="mt-2 font-rajdhani text-[13px] text-text-muted/70 hover:text-text-muted transition-colors"
+          >
+            Forgot password?
+          </button>
+        )}
+
+        {forgotMode && (
+          <button
+            onClick={() => { setForgotMode(false); setError(''); }}
+            className="mt-6 font-rajdhani text-[14px] text-text-muted hover:text-accent-cyan transition-colors"
+          >
+            Back to sign in
+          </button>
+        )}
 
         <button
           onClick={() => navigate('/')}

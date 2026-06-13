@@ -162,6 +162,7 @@ export class GameLoop {
     this.matchEnded = false;
     this.matchEndFired = false;
     this.matchState.timer = this.opts.matchTime;
+    this.matchState.suddenDeath = false;
     this.lastTime = performance.now();
     this.countdownValue = 3;
     this.countdownTimer = 0;

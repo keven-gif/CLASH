@@ -8,7 +8,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { MatchmakingManager, WebSocketManager } from '@/game/online';
 import type { MatchFound, MatchmakingState } from '@/game/online';
-import { CHARACTERS } from '@/store/gameStore';
+import { CHARACTERS, useGameStore } from '@/store/gameStore';
 
 type Screen = 'menu' | 'searching' | 'room' | 'playing' | 'results';
 type Tab = 'play' | 'rooms' | 'leaderboard' | 'settings';
@@ -24,6 +24,7 @@ interface LobbyPlayer {
 export default function LobbyScreen() {
   const navigate = useNavigate();
   const { user, signOut, loading: authLoading } = useAuth();
+  const { selectCharacter, setOnlineMode } = useGameStore();
 
   // MatchmakingManager & WebSocket
   const mmRef = useRef<MatchmakingManager | null>(null);
@@ -37,6 +38,7 @@ export default function LobbyScreen() {
   const [opponent, setOpponent] = useState<MatchFound | null>(null);
   const [joinCode, setJoinCode] = useState('');
   const [selectedCharacter, setSelectedCharacter] = useState('assassin');
+  useEffect(() => { selectedCharacterRef.current = selectedCharacter; }, [selectedCharacter]);
   const [isReady, setIsReady] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [chatMessages, setChatMessages] = useState<{ playerId: string; username: string; message: string }[]>([]);
@@ -46,6 +48,7 @@ export default function LobbyScreen() {
   const matchResults: any[] = [];
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const selectedCharacterRef = useRef(selectedCharacter);
 
   // ── Build lobby players from match state ─────────────────────────
   useEffect(() => {
@@ -108,6 +111,7 @@ export default function LobbyScreen() {
       }
     });
     ws.connect(user.id);
+    ws.authenticate(user.id, user.username);
 
     mm.onStateChange((s: MatchmakingState) => {
       setMmState(s);
@@ -127,6 +131,9 @@ export default function LobbyScreen() {
         setCountdown(c);
         if (c <= 0) {
           if (cdTimerRef.current) clearInterval(cdTimerRef.current);
+          const chosenChar = CHARACTERS.find(ch => ch.id === selectedCharacterRef.current) ?? CHARACTERS[0];
+          selectCharacter(1, chosenChar);
+          setOnlineMode(true);
           navigate('/select', { state: { onlineMode: true, isHost: match.isHost, opponent: match.opponent } });
         }
       }, 1000);
