@@ -43,14 +43,15 @@ export function preloadStageImages(): void {
   loadStageImage('hazard', `${base}stages/stage-hazard.jpg?v=2`);
 }
 
-// ─── Character Silhouette Colors ─────────────────────────────────────
+// ─── Character Design Tokens ─────────────────────────────────────────
 
-const CHARACTER_COLORS: Record<string, { primary: string; secondary: string }> = {
-  assassin: { primary: '#2d2d5e', secondary: '#7c3aed' },
-  swordsman: { primary: '#7f1d1d', secondary: '#dc2626' },
-  ronin:     { primary: '#1c1c1c', secondary: '#6b7280' },
-  alchemist: { primary: '#14532d', secondary: '#22c55e' },
-  gunner:    { primary: '#1e3a5f', secondary: '#3b82f6' },
+interface CharDesign { skin: string; body: string; accent: string; weapon: string; }
+const CHAR_DESIGN: Record<string, CharDesign> = {
+  assassin: { skin: '#c8856a', body: '#1a1a1a', accent: '#cc1a2e', weapon: '#ff3344' },
+  swordsman: { skin: '#d4a574', body: '#0d3d3d', accent: '#00e5d4', weapon: '#00fff0' },
+  ronin:     { skin: '#c8a882', body: '#1a2035', accent: '#4da6ff', weapon: '#88ccff' },
+  alchemist: { skin: '#b5c77a', body: '#1a3a1a', accent: '#39ff14', weapon: '#88ff44' },
+  gunner:    { skin: '#c8906a', body: '#3d2b1f', accent: '#ff8c00', weapon: '#ffcc44' },
 };
 
 // ─── Character Silhouette Drawing ────────────────────────────────────
@@ -60,70 +61,242 @@ function drawCharacterSilhouette(
   characterId: string,
   x: number, y: number,
   width: number, height: number,
-  direction: number,
-  _state: string
+  _direction: number,
+  state: string
 ): void {
-  const colors = CHARACTER_COLORS[characterId] ?? { primary: '#888', secondary: '#555' };
+  const d = CHAR_DESIGN[characterId] ?? { skin: '#c8a882', body: '#333', accent: '#aaa', weapon: '#fff' };
+
+  // Animation params derived from state
+  const isAir = state === 'jump' || state === 'fall' || state === 'doubleJump';
+  const isAttack = state.startsWith('attack') || state === 'special';
+  const isHit = state === 'hurt' || state === 'knockback';
+  const legSwing = isAir ? 0.3 : isAttack ? 0.2 : 0;
+  const armSwing = isAttack ? 0.5 : isHit ? -0.3 : 0.15;
+  const bodyLean = isAttack ? 0.12 : isHit ? -0.1 : 0;
+
+  // Body proportions — all relative to bounding box center (x, y)
+  const top = y - height / 2;
+  const headR = width * 0.19;
+  const headCY = top + headR * 1.1;
+  const neckY = headCY + headR * 0.85;
+  const torsoH = height * 0.28;
+  const torsoW = width * 0.32;
+  const torsoX = x + bodyLean * width - torsoW / 2;
+  const torsoY = neckY;
+  const hipY = torsoY + torsoH;
+  const legW = width * 0.12;
+  const legH = height * 0.26;
+  const bootH = height * 0.08;
+  const armW = width * 0.1;
+  const armH = height * 0.22;
+
   ctx.save();
-  if (direction === -1) {
-    ctx.translate(x, y);
-    ctx.scale(-1, 1);
-    ctx.translate(-x, -y);
+
+  // ── Legs ─────────────────────────────────────────────────────────
+  const lLegAngle = legSwing;
+  const rLegAngle = -legSwing;
+  for (let i = 0; i < 2; i++) {
+    const side = i === 0 ? -1 : 1;
+    const angle = i === 0 ? lLegAngle : rLegAngle;
+    const legX = x + side * (torsoW * 0.22);
+    ctx.save();
+    ctx.translate(legX, hipY);
+    ctx.rotate(angle);
+    ctx.fillStyle = d.body;
+    ctx.fillRect(-legW / 2, 0, legW, legH - bootH);
+    ctx.fillStyle = d.accent;
+    ctx.fillRect(-legW / 2, legH - bootH, legW * 1.2, bootH);
+    ctx.restore();
   }
 
-  const cx = x;
-  const cy = y;
+  // ── Torso ─────────────────────────────────────────────────────────
+  ctx.fillStyle = d.body;
+  roundRect(ctx, torsoX, torsoY, torsoW, torsoH, width * 0.04);
+  ctx.fill();
+  // Chest stripe
+  ctx.fillStyle = d.accent;
+  ctx.globalAlpha = 0.4;
+  ctx.fillRect(torsoX + torsoW * 0.3, torsoY + torsoH * 0.1, torsoW * 0.12, torsoH * 0.7);
+  ctx.globalAlpha = 1;
 
-  // Head
-  ctx.fillStyle = colors.primary;
+  // ── Arms ─────────────────────────────────────────────────────────
+  const lArmAngle = -armSwing;
+  const rArmAngle = armSwing;
+  for (let i = 0; i < 2; i++) {
+    const side = i === 0 ? -1 : 1;
+    const angle = i === 0 ? lArmAngle : rArmAngle;
+    const armX = x + side * (torsoW * 0.5 + armW * 0.3);
+    ctx.save();
+    ctx.translate(armX, torsoY + armW);
+    ctx.rotate(angle);
+    ctx.fillStyle = d.body;
+    ctx.fillRect(-armW / 2, 0, armW, armH - armW);
+    // Glove
+    ctx.fillStyle = d.accent;
+    ctx.beginPath();
+    ctx.arc(0, armH - armW, armW * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ── Head ─────────────────────────────────────────────────────────
+  ctx.fillStyle = d.skin;
   ctx.beginPath();
-  ctx.arc(cx, cy - height * 0.35, width * 0.18, 0, Math.PI * 2);
+  ctx.arc(x + bodyLean * width, headCY, headR, 0, Math.PI * 2);
   ctx.fill();
 
-  // Torso
-  ctx.fillStyle = colors.secondary;
-  ctx.fillRect(cx - width * 0.14, cy - height * 0.28, width * 0.28, height * 0.3);
+  // ── Character-specific head gear & weapon ────────────────────────
+  const hx = x + bodyLean * width;
+  const hy = headCY;
+  const sc = height / 100; // scale factor
 
-  // Legs
-  ctx.fillStyle = colors.primary;
-  ctx.fillRect(cx - width * 0.12, cy + 0.02 * height, width * 0.1, height * 0.25);
-  ctx.fillRect(cx + 0.02 * width, cy + 0.02 * height, width * 0.1, height * 0.25);
-
-  // Arms
-  ctx.fillStyle = colors.secondary;
-  ctx.fillRect(cx - width * 0.24, cy - height * 0.25, width * 0.1, height * 0.22);
-  ctx.fillRect(cx + width * 0.14, cy - height * 0.25, width * 0.1, height * 0.22);
-
-  // Weapon
-  const scale = height / 100;
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2 * scale;
-  ctx.beginPath();
+  ctx.save();
   switch (characterId) {
-    case 'assassin':
-      ctx.arc(cx + width * 0.3, cy - height * 0.1, width * 0.2, -0.8, 0.8);
+    case 'assassin': {
+      // Ninja mask (lower half of head)
+      ctx.fillStyle = '#111';
+      ctx.beginPath();
+      ctx.arc(hx, hy, headR, 0.1, Math.PI - 0.1);
+      ctx.fill();
+      // Glowing red eyes
+      ctx.shadowColor = d.weapon;
+      ctx.shadowBlur = 8 * sc;
+      ctx.fillStyle = d.weapon;
+      ctx.beginPath(); ctx.arc(hx - headR * 0.38, hy - headR * 0.1, 2.5 * sc, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(hx + headR * 0.38, hy - headR * 0.1, 2.5 * sc, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      // Twin claw blades (right arm extended)
+      const clawBaseX = x + torsoW * 0.55;
+      const clawBaseY = torsoY + armH * 0.7;
+      ctx.strokeStyle = d.weapon;
+      ctx.lineWidth = 2.5 * sc;
+      ctx.shadowColor = d.weapon;
+      ctx.shadowBlur = isAttack ? 12 * sc : 4 * sc;
+      for (let c = -1; c <= 1; c++) {
+        ctx.beginPath();
+        ctx.moveTo(clawBaseX, clawBaseY + c * 5 * sc);
+        ctx.lineTo(clawBaseX + (isAttack ? 28 : 18) * sc, clawBaseY + c * 5 * sc - 4 * sc);
+        ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
       break;
-    case 'swordsman':
-      ctx.moveTo(cx + width * 0.24, cy - height * 0.28);
-      ctx.lineTo(cx + width * 0.38, cy - height * 0.08);
+    }
+    case 'swordsman': {
+      // Gold circlet
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 3 * sc;
+      ctx.beginPath();
+      ctx.arc(hx, hy, headR + 2 * sc, Math.PI + 0.4, -0.4);
+      ctx.stroke();
+      // Gem on circlet
+      ctx.fillStyle = d.accent;
+      ctx.shadowColor = d.accent;
+      ctx.shadowBlur = 8 * sc;
+      ctx.beginPath(); ctx.arc(hx, hy - headR - 1 * sc, 4 * sc, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      // Glowing straight sword
+      const swX = x + torsoW * 0.6;
+      const swY0 = torsoY - 8 * sc;
+      const swY1 = hipY + 10 * sc;
+      ctx.shadowColor = d.weapon;
+      ctx.shadowBlur = isAttack ? 20 * sc : 8 * sc;
+      ctx.strokeStyle = d.weapon;
+      ctx.lineWidth = 4 * sc;
+      ctx.beginPath(); ctx.moveTo(swX, swY0); ctx.lineTo(swX, swY1); ctx.stroke();
+      // Guard
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 3 * sc;
+      ctx.beginPath(); ctx.moveTo(swX - 8 * sc, torsoY + torsoH * 0.3); ctx.lineTo(swX + 8 * sc, torsoY + torsoH * 0.3); ctx.stroke();
+      ctx.shadowBlur = 0;
       break;
-    case 'ronin':
-      ctx.moveTo(cx + width * 0.24, cy - height * 0.32);
-      ctx.lineTo(cx + width * 0.44, cy + height * 0.02);
+    }
+    case 'ronin': {
+      // Blue-stripe headband
+      ctx.fillStyle = d.body;
+      ctx.fillRect(hx - headR, hy - headR * 0.2, headR * 2, headR * 0.35);
+      ctx.fillStyle = d.accent;
+      ctx.fillRect(hx - headR, hy - headR * 0.08, headR * 2, headR * 0.12);
+      // Headband tails
+      ctx.fillStyle = d.body;
+      ctx.fillRect(hx + headR * 0.5, hy, headR * 0.25, headR * 0.9);
+      // Curved katana held diagonally
+      const kx0 = x + torsoW * 0.6;
+      const ky0 = torsoY + 4 * sc;
+      ctx.strokeStyle = d.weapon;
+      ctx.lineWidth = 3.5 * sc;
+      ctx.shadowColor = d.weapon;
+      ctx.shadowBlur = isAttack ? 18 * sc : 6 * sc;
+      ctx.beginPath();
+      ctx.moveTo(kx0, ky0);
+      ctx.quadraticCurveTo(kx0 + 20 * sc, ky0 + 10 * sc, kx0 + 30 * sc, ky0 + 38 * sc);
+      ctx.stroke();
+      // Tsuba (guard)
+      ctx.strokeStyle = '#c8a060';
+      ctx.lineWidth = 5 * sc;
+      ctx.beginPath(); ctx.moveTo(kx0 - 5 * sc, ky0 + 6 * sc); ctx.lineTo(kx0 + 9 * sc, ky0 + 6 * sc); ctx.stroke();
+      ctx.shadowBlur = 0;
       break;
-    case 'alchemist':
-      ctx.moveTo(cx + width * 0.24, cy - height * 0.22);
-      ctx.lineTo(cx + width * 0.36, cy - height * 0.14);
-      ctx.arc(cx + width * 0.38, cy - height * 0.1, width * 0.07, 0, Math.PI * 2);
+    }
+    case 'alchemist': {
+      // Round goggles
+      ctx.strokeStyle = d.accent;
+      ctx.lineWidth = 2.5 * sc;
+      ctx.fillStyle = `${d.accent}33`;
+      for (const ox of [-headR * 0.35, headR * 0.35]) {
+        ctx.beginPath(); ctx.arc(hx + ox, hy - headR * 0.05, headR * 0.28, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      }
+      // Bridge
+      ctx.strokeStyle = d.accent;
+      ctx.lineWidth = 2 * sc;
+      ctx.beginPath(); ctx.moveTo(hx - headR * 0.07, hy - headR * 0.05); ctx.lineTo(hx + headR * 0.07, hy - headR * 0.05); ctx.stroke();
+      // Glowing staff
+      const stX = x + torsoW * 0.6;
+      ctx.strokeStyle = '#8B4513';
+      ctx.lineWidth = 5 * sc;
+      ctx.beginPath(); ctx.moveTo(stX, torsoY - 6 * sc); ctx.lineTo(stX, hipY + 20 * sc); ctx.stroke();
+      // Orb at top
+      ctx.shadowColor = d.weapon;
+      ctx.shadowBlur = isAttack ? 22 * sc : 10 * sc;
+      ctx.fillStyle = d.weapon;
+      ctx.beginPath(); ctx.arc(stX, torsoY - 12 * sc, 7 * sc, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
       break;
-    case 'gunner':
-      ctx.moveTo(cx + width * 0.24, cy - height * 0.18);
-      ctx.lineTo(cx + width * 0.44, cy - height * 0.18);
-      ctx.moveTo(cx + width * 0.34, cy - height * 0.18);
-      ctx.lineTo(cx + width * 0.34, cy - height * 0.10);
+    }
+    case 'gunner': {
+      // Tactical visor (band across upper face)
+      ctx.fillStyle = d.body;
+      ctx.fillRect(hx - headR, hy - headR * 0.4, headR * 2, headR * 0.45);
+      ctx.fillStyle = d.accent;
+      ctx.globalAlpha = 0.7;
+      ctx.fillRect(hx - headR + 2 * sc, hy - headR * 0.35, headR * 1.96, headR * 0.3);
+      ctx.globalAlpha = 1;
+      // Dual pistols
+      const muzzleFlash = isAttack;
+      for (let g = 0; g < 2; g++) {
+        const gx = x + (g === 0 ? -torsoW * 0.55 : torsoW * 0.55);
+        const gy = torsoY + armH * 0.65;
+        const dir = g === 0 ? -1 : 1;
+        ctx.fillStyle = '#555';
+        ctx.fillRect(gx - 6 * sc * dir, gy - 4 * sc, 12 * sc, 7 * sc);
+        // Barrel
+        ctx.fillStyle = '#333';
+        ctx.fillRect(gx + (g === 0 ? -16 : 8) * sc, gy - 2 * sc, 10 * sc, 4 * sc);
+        // Muzzle flash
+        if (muzzleFlash) {
+          ctx.fillStyle = d.weapon;
+          ctx.shadowColor = d.weapon;
+          ctx.shadowBlur = 15 * sc;
+          ctx.beginPath();
+          const mx = gx + (g === 0 ? -20 : 22) * sc;
+          ctx.arc(mx, gy, 5 * sc, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+      }
       break;
+    }
   }
-  ctx.stroke();
+  ctx.restore();
 
   ctx.restore();
 }
