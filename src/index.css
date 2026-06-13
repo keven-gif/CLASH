@@ -1,0 +1,104 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* CLASH Design Tokens */
+    --bg-void: #050507;
+    --bg-dark: #0A0A0F;
+    --bg-panel: #111118;
+    --bg-panel-hover: #1A1A24;
+    --bg-elevated: #1E1E2A;
+    --border-subtle: #2A2A3A;
+    --border-active: #3D3D55;
+    --text-primary: #F0F0F5;
+    --text-secondary: #8A8AA3;
+    --text-muted: #555570;
+
+    /* Character Accents */
+    --accent-crimson: #E81D2D;
+    --accent-cyan: #00E5D4;
+    --accent-ice: #4DA6FF;
+    --accent-green: #39FF14;
+
+    /* HUD Colors */
+    --hp-bar-full: #00E5D4;
+    --hp-bar-mid: #FFB800;
+    --hp-bar-high: #E81D2D;
+    --hp-bar-extreme: #FF0044;
+    --timer-normal: #F0F0F5;
+    --timer-warning: #FFB800;
+    --timer-danger: #E81D2D;
+    --stock-active: #F0F0F5;
+    --stock-lost: #2A2A3A;
+    --shield-blue: #4DA6FF;
+    --shield-break: #E81D2D;
+
+    /* Feedback Colors */
+    --hit-spark: #FFFFFF;
+    --hit-heavy: #FFB800;
+    --star-ko: #FFFFFF;
+
+    /* Animation Tokens */
+    --ease-game: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-snap: cubic-bezier(0.68, -0.55, 0.27, 1.55);
+    --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-hit: cubic-bezier(0.1, 0.9, 0.2, 1);
+
+    /* Timing Tokens */
+    --duration-instant: 50ms;
+    --duration-fast: 150ms;
+    --duration-normal: 300ms;
+    --duration-slow: 500ms;
+    --duration-dramatic: 800ms;
+
+    /* shadcn compatibility */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --radius: 0.625rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html, body, #root {
+    min-height: 100dvh;
+    height: 100dvh;
+    overflow: hidden;
+    background-color: var(--bg-void);
+    color: var(--text-primary);
+    font-family: 'Rajdhani', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+/* NOTE: Portrait → landscape rotation is intentionally removed.
+   CSS body rotation breaks touch coordinates, canvas rendering, and
+   flex layouts. The game uses w-screen h-screen on all screens which
+   adapts to the actual viewport. Players should rotate their device
+   to landscape for the best experience — a prompt overlay is shown
+   in Gameplay.tsx when the device is in portrait orientation. */
