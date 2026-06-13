@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { MatchmakingManager } from '@/game/online';
 import type { MatchFound, MatchmakingState } from '@/game/online';
 import { CHARACTERS, useGameStore } from '@/store/gameStore';
+import { RealtimeChannel } from '@/game/online/RealtimeChannel';
 
 type Screen = 'menu' | 'searching' | 'room' | 'playing' | 'results';
 type Tab = 'play' | 'rooms' | 'leaderboard' | 'settings';
@@ -24,7 +25,7 @@ interface LobbyPlayer {
 export default function LobbyScreen() {
   const navigate = useNavigate();
   const { user, signOut, loading: authLoading } = useAuth();
-  const { selectCharacter, setOnlineMode, setIsHost, setMatchOpponent } = useGameStore();
+  const { selectCharacter, setOnlineMode, setIsHost, setMatchOpponent, setMatchChannel, user: storeUser } = useGameStore();
 
   // MatchmakingManager & WebSocket
   const mmRef = useRef<MatchmakingManager | null>(null);
@@ -120,7 +121,11 @@ export default function LobbyScreen() {
           setOnlineMode(true);
           setIsHost(match.isHost);
           setMatchOpponent(match.opponent);
-          navigate('/stage');
+          // Create the shared realtime channel now so it's ready for CharacterSelect
+          const myId = storeUser?.id ?? user!.id;
+          const matchId = [myId, match.opponent.id].sort().join('_');
+          setMatchChannel(new RealtimeChannel(matchId, myId));
+          navigate('/select');
         }
       }, 1000);
     });

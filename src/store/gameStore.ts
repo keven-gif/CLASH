@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Profile } from '@/supabase/client';
+import type { RealtimeChannel } from '@/game/online/RealtimeChannel';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -177,6 +178,8 @@ interface GameState {
   setIsHost: (isHost: boolean) => void;
   matchOpponent: Profile | null;
   setMatchOpponent: (opponent: Profile | null) => void;
+  matchChannel: RealtimeChannel | null;
+  setMatchChannel: (ch: RealtimeChannel | null) => void;
 
   // Actions
   selectCharacter: (player: 1 | 2, character: Character) => void;
@@ -232,6 +235,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   setIsHost: (isHost) => set({ isHost }),
   matchOpponent: null,
   setMatchOpponent: (opponent) => set({ matchOpponent: opponent }),
+  matchChannel: null,
+  setMatchChannel: (ch) => set({ matchChannel: ch }),
 
   // Actions
   setGameState: (state) => set({ gameState: state }),

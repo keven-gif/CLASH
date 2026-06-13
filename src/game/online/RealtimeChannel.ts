@@ -14,12 +14,15 @@ export interface RemoteInput {
   grabPressed: boolean;
 }
 
+type EventCallback = (data: any) => void;
+
 export class RealtimeChannel {
   private channel: ReturnType<typeof supabase.channel>;
   private myId: string;
   private onInputCb: ((inp: RemoteInput) => void) | null = null;
   private latestInput: RemoteInput | null = null;
-  private ready = false;
+  private eventListeners = new Map<string, EventCallback[]>();
+  private subscribed = false;
 
   constructor(matchId: string, myId: string) {
     this.myId = myId;
@@ -34,18 +37,39 @@ export class RealtimeChannel {
           this.onInputCb?.(payload.inp);
         }
       })
+      .on('broadcast', { event: 'coord' }, ({ payload }: any) => {
+        if (payload?.pid !== myId && payload?.evt) {
+          const cbs = this.eventListeners.get(payload.evt) ?? [];
+          cbs.forEach(cb => cb(payload.data));
+        }
+      })
       .subscribe((status: string) => {
-        if (status === 'SUBSCRIBED') this.ready = true;
+        if (status === 'SUBSCRIBED') this.subscribed = true;
       });
   }
 
   sendInput(input: RemoteInput): void {
-    if (!this.ready) return;
+    if (!this.subscribed) return;
     this.channel.send({
       type: 'broadcast',
       event: 'input',
       payload: { pid: this.myId, inp: input },
     });
+  }
+
+  // Send a coordination event to the opponent
+  sendEvent(event: string, data?: any): void {
+    this.channel.send({
+      type: 'broadcast',
+      event: 'coord',
+      payload: { pid: this.myId, evt: event, data },
+    });
+  }
+
+  // Listen for a coordination event from the opponent
+  onEvent(event: string, cb: EventCallback): void {
+    const existing = this.eventListeners.get(event) ?? [];
+    this.eventListeners.set(event, [...existing, cb]);
   }
 
   getLatestInput(): RemoteInput | null {
@@ -57,7 +81,7 @@ export class RealtimeChannel {
   }
 
   isReady(): boolean {
-    return this.ready;
+    return this.subscribed;
   }
 
   disconnect(): void {
