@@ -29,6 +29,7 @@ export default function LobbyScreen() {
 
   // MatchmakingManager & WebSocket
   const mmRef = useRef<MatchmakingManager | null>(null);
+  const matchFoundRef = useRef(false);
   const [mmState, setMmState] = useState<MatchmakingState>('idle');
 
   // UI State
@@ -125,6 +126,7 @@ export default function LobbyScreen() {
           const myId = storeUser?.id ?? user!.id;
           const matchId = [myId, match.opponent.id].sort().join('_');
           setMatchChannel(new RealtimeChannel(matchId, myId));
+          matchFoundRef.current = true;
           navigate('/select');
         }
       }, 1000);
@@ -227,7 +229,9 @@ export default function LobbyScreen() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (cdTimerRef.current) clearInterval(cdTimerRef.current);
-      mmRef.current?.destroy();
+      // Don't delete match_queue rows if a match was found — CharacterSelect
+      // needs those rows to sync character selections between players
+      if (!matchFoundRef.current) mmRef.current?.destroy();
     };
   }, []);
 

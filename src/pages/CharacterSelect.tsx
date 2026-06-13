@@ -100,7 +100,9 @@ export default function CharacterSelect() {
         supabase.from('match_queue')
           .update({ webrtc_offer: JSON.stringify({ charId: char.id }) })
           .eq('player_id', myId)
-          .then(() => {});
+          .then(({ error }) => {
+            if (error) console.error('[CharSelect] DB write failed:', error.message);
+          });
       }
       selectCharacter(1, char);
       setMyReady(true);
