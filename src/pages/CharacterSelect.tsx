@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Zap, Sword, Shield, Sparkles, Loader, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Zap, Sword, Shield, Sparkles, Loader } from 'lucide-react';
 import { useGameStore, CHARACTERS, STAGES } from '@/store/gameStore';
 import type { Character } from '@/store/gameStore';
 import { audioManager } from '@/audio/AudioManager';
-import { supabase } from '@/supabase/client';
 
 // ─── Stat Bar ────────────────────────────────────────────────────────
 
@@ -35,13 +34,14 @@ function StatBar({ label, value, maxValue, color, icon }: {
 export default function CharacterSelect() {
   const navigate = useNavigate();
 
-  // Use individual selectors so unrelated store updates don't restart the poll effect
+  // Individual selectors — prevent effect restarts on unrelated store updates
   const player1Character = useGameStore(s => s.player1Character);
   const player2Character = useGameStore(s => s.player2Character);
   const selectCharacter  = useGameStore(s => s.selectCharacter);
   const onlineMode       = useGameStore(s => s.onlineMode);
   const isHost           = useGameStore(s => s.isHost);
   const matchOpponent    = useGameStore(s => s.matchOpponent);
+  const matchChannel     = useGameStore(s => s.matchChannel);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
@@ -51,157 +51,105 @@ export default function CharacterSelect() {
   const [opponentReady, setOpponentReady] = useState(false);
   const [opponentCharId, setOpponentCharId] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState('');
-  const [writeError, setWriteError] = useState('');
-  const [pendingChar, setPendingChar] = useState<Character | null>(null);
+  const [waitingForChannel, setWaitingForChannel] = useState(false);
+
+  const navigatedRef = useRef(false);
 
   useEffect(() => {
     audioManager.playMusic('music-title');
   }, []);
 
-  const navigatedRef = useRef(false);
-  const pollRef      = useRef<ReturnType<typeof setInterval> | null>(null);
-  const timeoutRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ── Online: DB poll — reads opponent's row every 1.5s ──────────────
+  // ── Online: use RealtimeChannel broadcast for char sync ────────────
   useEffect(() => {
-    if (!onlineMode || !matchOpponent) return;
+    if (!onlineMode || !matchChannel) return;
 
-    // 45-second timeout — if opponent vanishes, return to lobby
-    timeoutRef.current = setTimeout(() => {
-      if (!navigatedRef.current) {
-        clearInterval(pollRef.current!);
-        setStatusMsg('Opponent disconnected. Returning to lobby...');
-        setTimeout(() => navigate('/lobby'), 2500);
-      }
-    }, 45_000);
-
-    pollRef.current = setInterval(async () => {
-      if (navigatedRef.current) return;
-      const opponentId = useGameStore.getState().matchOpponent?.id;
-      if (!opponentId) return;
-
-      const { data, error } = await supabase
-        .from('match_queue')
-        .select('webrtc_offer')
-        .eq('player_id', opponentId)
-        .maybeSingle();   // maybeSingle returns null instead of error when no row
-
-      if (error) {
-        console.warn('[CharSelect] poll error:', error.code, error.message);
-        return;
-      }
-      if (!data?.webrtc_offer) return;
-
-      let payload: any;
-      try { payload = JSON.parse(data.webrtc_offer); }
-      catch { return; }
-
-      if (payload?.charId) {
-        setOpponentCharId(payload.charId);
+    // Listen for opponent's character selection
+    matchChannel.onEvent('char_select', (data: { charId: string }) => {
+      if (data?.charId) {
+        setOpponentCharId(data.charId);
         setOpponentReady(true);
       }
+    });
 
-      if (payload?.start && !navigatedRef.current) {
-        navigatedRef.current = true;
-        clearInterval(pollRef.current!);
-        clearTimeout(timeoutRef.current!);
+    // Listen for host's start signal
+    matchChannel.onEvent('match_start', (data: { p1CharId: string; p2CharId: string; stageId: string }) => {
+      if (navigatedRef.current) return;
+      navigatedRef.current = true;
 
-        // CLIENT: host wrote p1=host char, p2=client char.
-        // Swap so local player is always P1 — GameLoop maps local-input→P1, remote-input→P2.
-        const myChar  = CHARACTERS.find(c => c.id === payload.p2CharId); // our char
-        const oppChar = CHARACTERS.find(c => c.id === payload.p1CharId); // host's char
-        if (myChar)  selectCharacter(1, myChar);
-        if (oppChar) selectCharacter(2, oppChar);
-        const stage = STAGES.find(s => s.id === payload.stageId) ?? STAGES[0];
-        useGameStore.getState().selectStage(stage);
-        navigate('/play');
-      }
-    }, 1500);
+      // CLIENT: host sent p1=host char, p2=client char.
+      // Swap so local player is always P1 — GameLoop maps local-input→P1, remote-input→P2.
+      const myChar  = CHARACTERS.find(c => c.id === data.p2CharId);
+      const oppChar = CHARACTERS.find(c => c.id === data.p1CharId);
+      if (myChar)  selectCharacter(1, myChar);
+      if (oppChar) selectCharacter(2, oppChar);
+      const stage = STAGES.find(s => s.id === data.stageId) ?? STAGES[0];
+      useGameStore.getState().selectStage(stage);
+      navigate('/play');
+    });
 
-    return () => {
-      clearInterval(pollRef.current!);
-      clearTimeout(timeoutRef.current!);
-    };
-  // matchOpponent.id is stable (set once in LobbyScreen) — safe to use as primitive dep
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onlineMode, matchOpponent?.id]);
-
-  // ── Write character to DB, set ready only on success ───────────────
-  const writeCharacter = useCallback(async (char: Character) => {
-    const myId = useGameStore.getState().user?.id;
-    if (!myId) { setWriteError('Not logged in — refresh and try again'); return; }
-
-    setWriteError('');
-    setPendingChar(char);
-
-    const { error } = await supabase
-      .from('match_queue')
-      .update({ webrtc_offer: JSON.stringify({ charId: char.id }) })
-      .eq('player_id', myId);
-
-    if (error) {
-      console.error('[CharSelect] char write failed:', error.message);
-      setWriteError('Could not save selection — tap to retry');
-      setPendingChar(null);
-      return;
+    // Re-broadcast our selection if we already picked (handles late channel subscription)
+    if (player1Character) {
+      matchChannel.sendEvent('char_select', { charId: player1Character.id });
     }
+  // matchChannel ref is stable after LobbyScreen sets it once
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onlineMode, matchChannel]);
 
-    setPendingChar(null);
-    selectCharacter(1, char);
-    setMyReady(true);
-    setStatusMsg('Waiting for opponent...');
-  }, [selectCharacter]);
-
-  // ─── Offline: pick CPU ────────────────────────────────────────────
+  // ── Select a character ────────────────────────────────────────────
   const handleSelect = useCallback((char: Character) => {
     if (myReady) return;
+
     if (onlineMode) {
-      writeCharacter(char);
+      if (!matchChannel) {
+        // Channel not ready yet — wait
+        setWaitingForChannel(true);
+        setStatusMsg('Connecting...');
+        const wait = setInterval(() => {
+          const ch = useGameStore.getState().matchChannel;
+          if (ch) {
+            clearInterval(wait);
+            setWaitingForChannel(false);
+            selectCharacter(1, char);
+            setMyReady(true);
+            setStatusMsg('Waiting for opponent...');
+            ch.sendEvent('char_select', { charId: char.id });
+          }
+        }, 200);
+        return;
+      }
+      selectCharacter(1, char);
+      setMyReady(true);
+      setStatusMsg('Waiting for opponent...');
+      matchChannel.sendEvent('char_select', { charId: char.id });
     } else {
       selectCharacter(1, char);
       const others = CHARACTERS.filter(c => c.id !== char.id);
       selectCharacter(2, others[Math.floor(Math.random() * others.length)]);
     }
-  }, [onlineMode, myReady, writeCharacter, selectCharacter]);
+  }, [onlineMode, myReady, matchChannel, selectCharacter]);
 
   // ─── Host starts the match ────────────────────────────────────────
-  const handleHostStart = useCallback(async () => {
+  const handleHostStart = useCallback(() => {
     if (!isHost || !player1Character || !opponentCharId) return;
     if (navigatedRef.current) return;
-
-    const stageId = 'battlefield';
-    const myId = useGameStore.getState().user?.id;
-    if (!myId) return;
-
-    setStatusMsg('Starting match...');
-
-    const { error } = await supabase.from('match_queue')
-      .update({ webrtc_offer: JSON.stringify({
-        charId: player1Character.id,
-        start: true,
-        p1CharId: player1Character.id,
-        p2CharId: opponentCharId,
-        stageId,
-      })})
-      .eq('player_id', myId);
-
-    if (error) {
-      setStatusMsg('Failed to start — tap START again');
-      console.error('[CharSelect] start write failed:', error.message);
-      return;
-    }
+    if (!matchChannel) return;
 
     navigatedRef.current = true;
-    clearInterval(pollRef.current!);
-    clearTimeout(timeoutRef.current!);
+    const stageId = 'battlefield';
 
-    // Host: P1 = own char, P2 = client char (opponent)
+    matchChannel.sendEvent('match_start', {
+      p1CharId: player1Character.id,
+      p2CharId: opponentCharId,
+      stageId,
+    });
+
+    // Host: P1 = own char, P2 = client char
     const p2 = CHARACTERS.find(c => c.id === opponentCharId);
     if (p2) selectCharacter(2, p2);
     const stage = STAGES.find(s => s.id === stageId) ?? STAGES[0];
     useGameStore.getState().selectStage(stage);
     navigate('/play');
-  }, [isHost, player1Character, opponentCharId, selectCharacter, navigate]);
+  }, [isHost, player1Character, opponentCharId, matchChannel, selectCharacter, navigate]);
 
   // ─── Offline fight ────────────────────────────────────────────────
   const handleFight = useCallback(() => {
@@ -220,12 +168,11 @@ export default function CharacterSelect() {
   };
 
   const char = CHARACTERS[activeIndex];
-  const isSaving    = pendingChar !== null;
-  const isLocalReady = onlineMode ? myReady : player1Character !== null;
-  const bothReady   = onlineMode
+  const isLocalReady  = onlineMode ? myReady : player1Character !== null;
+  const bothReady     = onlineMode
     ? (myReady && opponentReady)
     : (player1Character !== null && player2Character !== null);
-  const opponentChar = opponentCharId ? CHARACTERS.find(c => c.id === opponentCharId) : null;
+  const opponentChar  = opponentCharId ? CHARACTERS.find(c => c.id === opponentCharId) : null;
 
   return (
     <div className="relative w-screen h-screen bg-void overflow-hidden select-none flex flex-col">
@@ -349,17 +296,6 @@ export default function CharacterSelect() {
       {/* ─── Action Bar ──────────────────────────────────────────── */}
       <div className="flex-shrink-0 px-4 pb-3 pt-1 space-y-1.5 z-40">
 
-        {/* DB write error — tapping retries */}
-        {writeError && (
-          <button
-            onClick={() => pendingChar === null && player1Character && writeCharacter(player1Character)}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-[#E81D2D]/15 border border-[#E81D2D]/40"
-          >
-            <AlertCircle size={14} className="text-[#E81D2D] flex-shrink-0" />
-            <span className="font-rajdhani text-[12px] text-[#E81D2D]">{writeError}</span>
-          </button>
-        )}
-
         {/* VS row */}
         <AnimatePresence>
           {bothReady && (
@@ -390,18 +326,18 @@ export default function CharacterSelect() {
         <div className="flex gap-3">
           {/* Select button */}
           <motion.button
-            onClick={() => !myReady && !isSaving && handleSelect(char)}
-            disabled={myReady || isSaving}
+            onClick={() => !myReady && !waitingForChannel && handleSelect(char)}
+            disabled={myReady || waitingForChannel}
             className="flex-1 h-12 rounded-xl font-rajdhani font-bold text-[16px] uppercase tracking-wider border transition-all disabled:opacity-60 flex items-center justify-center gap-2"
             style={{
               backgroundColor: isLocalReady && player1Character?.id === char.id ? char.accentColor + '20' : 'transparent',
               borderColor: char.accentColor + '60',
               color: char.accentColor,
             }}
-            whileTap={{ scale: (myReady || isSaving) ? 1 : 0.96 }}
+            whileTap={{ scale: (myReady || waitingForChannel) ? 1 : 0.96 }}
           >
-            {isSaving ? (
-              <><Loader size={14} className="animate-spin" /> SAVING...</>
+            {waitingForChannel ? (
+              <><Loader size={14} className="animate-spin" /> CONNECTING...</>
             ) : isLocalReady && player1Character?.id === char.id ? (
               '✓ SELECTED'
             ) : (
