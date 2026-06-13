@@ -24,6 +24,9 @@ export function preloadCharacterImages(): void {
   loadCharacterImage('gunner', `${base}characters/gunner.png?v=2`);
   loadCharacterImage('gunner-sheet', `${base}characters/blaze-sheet.png?v=1`);
   loadCharacterImage('swordsman-sheet', `${base}characters/ace-sheet.png?v=1`);
+  loadCharacterImage('assassin-sheet', `${base}characters/shadow-sheet.png?v=1`);
+  loadCharacterImage('ronin-sheet', `${base}characters/kaze-sheet.png?v=1`);
+  loadCharacterImage('alchemist-sheet', `${base}characters/mix-sheet.png?v=1`);
 }
 
 // ─── Sprite Sheet Config ─────────────────────────────────────────────
@@ -40,6 +43,9 @@ const SPRITE_FRAME_RATE = 5; // game-frames per sprite-frame (~12 fps)
 const SPRITE_SHEET_CHARS: Record<string, string> = {
   gunner: 'gunner-sheet',
   swordsman: 'swordsman-sheet',
+  assassin: 'assassin-sheet',
+  ronin: 'ronin-sheet',
+  alchemist: 'alchemist-sheet',
 };
 
 function getSpriteRow(state: string): number {
