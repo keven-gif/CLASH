@@ -46,11 +46,11 @@ export function preloadStageImages(): void {
 // ─── Character Silhouette Colors ─────────────────────────────────────
 
 const CHARACTER_COLORS: Record<string, { primary: string; secondary: string }> = {
-  assassin: { primary: '#2a2a2a', secondary: '#8b0000' },
-  swordsman: { primary: '#1a3a5c', secondary: '#4a7a9b' },
-  ronin: { primary: '#2d2d2d', secondary: '#8b7355' },
-  alchemist: { primary: '#1a4a1a', secondary: '#4a8b4a' },
-  gunner: { primary: '#3d2b1f', secondary: '#8b6347' },
+  assassin: { primary: '#2d2d5e', secondary: '#7c3aed' },
+  swordsman: { primary: '#7f1d1d', secondary: '#dc2626' },
+  ronin:     { primary: '#1c1c1c', secondary: '#6b7280' },
+  alchemist: { primary: '#14532d', secondary: '#22c55e' },
+  gunner:    { primary: '#1e3a5f', secondary: '#3b82f6' },
 };
 
 // ─── Character Silhouette Drawing ────────────────────────────────────
@@ -95,8 +95,9 @@ function drawCharacterSilhouette(
   ctx.fillRect(cx + width * 0.14, cy - height * 0.25, width * 0.1, height * 0.22);
 
   // Weapon
+  const scale = height / 100;
   ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2 * scale;
   ctx.beginPath();
   switch (characterId) {
     case 'assassin':
