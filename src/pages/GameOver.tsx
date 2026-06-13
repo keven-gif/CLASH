@@ -183,6 +183,8 @@ export default function GameOver() {
     player2Character,
     matchStats,
     restartMatch,
+    onlineMode,
+    resetMatch,
   } = useGameStore()
 
   // Ensure we have data — fallback if navigated directly
@@ -227,13 +229,24 @@ export default function GameOver() {
     effectiveWinner === 1 ? stats.player2Stats : stats.player1Stats
 
   const handleRematch = useCallback(() => {
-    restartMatch()
-    navigate('/play')
-  }, [restartMatch, navigate])
+    if (onlineMode) {
+      // Online match infrastructure is torn down after a match — go back to lobby to rematch
+      resetMatch()
+      navigate('/lobby')
+    } else {
+      restartMatch()
+      navigate('/play')
+    }
+  }, [onlineMode, restartMatch, resetMatch, navigate])
 
   const handleChangeCharacters = useCallback(() => {
-    navigate('/select')
-  }, [navigate])
+    if (onlineMode) {
+      resetMatch()
+      navigate('/lobby')
+    } else {
+      navigate('/select')
+    }
+  }, [onlineMode, resetMatch, navigate])
 
   const handleQuit = useCallback(() => {
     navigate('/')

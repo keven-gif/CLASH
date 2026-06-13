@@ -30,13 +30,13 @@ export class MatchmakingManager {
   private async poll(): Promise<void> {
     if (this.state !== 'searching' || this.done || !this.myProfile) return;
 
-    // 1. Check if our own row was matched by someone else (we are the client)
-    const myRow = await api.getQueueEntry(this.myProfile.id);
-    if (myRow?.status === 'matched' && myRow.matched_with) {
+    // 1. Check if someone else claimed us as their opponent (we are the client)
+    const hostRow = await api.findWhoMatchedMe(this.myProfile.id);
+    if (hostRow) {
       this.done = true;
       this.clearPoll();
       this.setState('found');
-      const oppProfile = await api.getProfile(myRow.matched_with);
+      const oppProfile = await api.getProfile(hostRow.player_id);
       if (!oppProfile) { this.setState('failed'); return; }
       this.onMatch?.({ opponent: oppProfile, isHost: false });
       return;
