@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useLocation } from 'react-router';
+import { NetworkManager } from '@/game/online/NetworkManager';
+import type { NetworkInput } from '@/game/online/NetworkManager';
 import { useGameStore, CHARACTERS } from '@/store/gameStore';
 import type { Character } from '@/store/gameStore';
 import { GameLoop } from '@/game/GameLoop';
@@ -13,6 +15,11 @@ import { Pause, Swords, Shield, Hand, ChevronUp } from 'lucide-react';
 
 export default function Gameplay() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const onlineMode = (location.state as any)?.onlineMode === true;
+  const isHost = (location.state as any)?.isHost === true;
+  const networkRef = useRef<NetworkManager | null>(null);
+  const latestRemoteInput = useRef<NetworkInput | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const joystickZoneRef = useRef<HTMLDivElement>(null);
 
@@ -131,9 +138,30 @@ export default function Gameplay() {
     const inputHandler = new InputHandler();
     inputHandlerRef.current = inputHandler;
 
-    // AI
+    // AI (used as fallback when no remote input arrives yet)
     const ai = new AIController('medium');
     aiRef.current = ai;
+
+    // Online mode: wire NetworkManager for P2 input
+    if (onlineMode) {
+      const nm = new NetworkManager();
+      networkRef.current = nm;
+      nm.onRemoteInput((inp: NetworkInput) => { latestRemoteInput.current = inp; });
+      // Kick off WebRTC handshake — errors are non-fatal; game falls back to AI
+      (async () => {
+        try {
+          if (isHost) {
+            const offer = await nm.createOffer();
+            // In a real deployment, signal via Supabase realtime / WebSocket
+            console.log('[online] offer ready, awaiting answer', offer.slice(0, 60));
+          } else {
+            console.log('[online] guest — waiting for host offer via signalling');
+          }
+        } catch (e) {
+          console.warn('[online] WebRTC setup failed, falling back to AI', e);
+        }
+      })();
+    }
 
     // Game loop
     const gameLoop = new GameLoop({
@@ -145,6 +173,9 @@ export default function Gameplay() {
       player2: p2,
       inputHandler,
       aiController: ai,
+      getP2Input: onlineMode
+        ? () => latestRemoteInput.current
+        : undefined,
       matchTime: timeLimit,
       onDamageUpdate: (player, damage) => {
         if (player === 1) setP1Damage(damage);
@@ -196,6 +227,7 @@ export default function Gameplay() {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       gameLoop.destroy();
+      networkRef.current?.disconnect();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

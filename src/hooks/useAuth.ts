@@ -26,29 +26,35 @@ export function useAuth() {
 
     console.log('[useAuth] no profile found, creating...');
 
-    // Profile doesn't exist — create it
+    // Profile doesn't exist yet — upsert so DB trigger / signUp races are harmless
     const { data: sessionData } = await supabase.auth.getSession();
     const email = sessionData.session?.user?.email || '';
     const metaUsername = sessionData.session?.user?.user_metadata?.username;
     const username = metaUsername || email.split('@')[0] || 'fighter';
 
-    const { data: newProfile, error: insertError } = await supabase
+    const { data: newProfile, error: upsertError } = await supabase
       .from('profiles')
-      .insert({
+      .upsert({
         id: userId,
         username,
         rank: 0,
         wins: 0,
         losses: 0,
-      })
+      }, { onConflict: 'id', ignoreDuplicates: false })
       .select()
       .single();
 
-    if (insertError) {
-      console.error('[useAuth] profile insert failed:', insertError.message);
-      setUser(null);
+    if (upsertError) {
+      console.error('[useAuth] profile upsert failed:', upsertError.message);
+      // On duplicate-key or any error, try a plain fetch — the row likely exists
+      const { data: existing } = await supabase
+        .from('profiles').select('*').eq('id', userId).single();
+      if (existing) {
+        setUser(existing as Profile);
+      }
+      // Never setUser(null) here — that triggers a redirect loop
     } else if (newProfile) {
-      console.log('[useAuth] profile created:', newProfile.username);
+      console.log('[useAuth] profile upserted:', newProfile.username);
       setUser(newProfile as Profile);
     }
 
@@ -96,16 +102,9 @@ export function useAuth() {
       email, password, options: { data: { username } }
     });
     if (error) throw error;
-    if (data.user) {
-      // Create profile directly (trigger may not fire)
-      await supabase.from('profiles').insert({
-        id: data.user.id,
-        username,
-        rank: 0,
-        wins: 0,
-        losses: 0,
-      });
-    }
+    // Don't insert profile here — the DB trigger fires on auth.users insert
+    // and onAuthStateChange → fetchProfile will upsert if needed.
+    // A manual insert here races with both and causes duplicate-key errors.
     return data;
   }, []);
 

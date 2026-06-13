@@ -54,6 +54,8 @@ export interface GameLoopOptions {
   player2: FighterState;
   inputHandler: InputHandler;
   aiController: AIController;
+  /** Optional override for P2 input (online mode). Return null to fall back to AI. */
+  getP2Input?: () => { joystick: { x: number; y: number }; attack: boolean; special: boolean; jump: boolean; shield: boolean; grab: boolean; attackPressed: boolean; specialPressed: boolean; jumpPressed: boolean; shieldPressed: boolean; grabPressed: boolean; } | null;
   matchTime: number;
   onDamageUpdate: (player: 1 | 2, damage: number) => void;
   onStockUpdate: (player: 1 | 2, stocks: number) => void;
@@ -74,6 +76,7 @@ export class GameLoop {
   private player2: FighterState;
   private inputHandler: InputHandler;
   private aiController: AIController;
+  private getP2Input?: GameLoopOptions['getP2Input'];
 
   private camera: Camera = {
     x: 0, y: 0, zoom: 1.0,
@@ -125,6 +128,7 @@ export class GameLoop {
     this.player2 = opts.player2;
     this.inputHandler = opts.inputHandler;
     this.aiController = opts.aiController;
+    this.getP2Input = opts.getP2Input;
     this.matchState.timer = opts.matchTime;
 
     this.onDamageUpdate = opts.onDamageUpdate;
@@ -313,7 +317,8 @@ export class GameLoop {
 
     // Get inputs
     const p1Input = this.inputHandler.getGameInput();
-    const p2Input = this.aiController.update(this.player2, this.player1, this.stage);
+    const remoteInput = this.getP2Input?.();
+    const p2Input = remoteInput ?? this.aiController.update(this.player2, this.player1, this.stage);
 
     // Update fighters
     this.updateFighter(this.player1, p1Input);
