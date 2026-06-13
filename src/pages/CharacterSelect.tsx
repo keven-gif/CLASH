@@ -5,7 +5,6 @@ import { ChevronLeft, ChevronRight, Zap, Sword, Shield, Sparkles, Loader } from 
 import { useGameStore, CHARACTERS, STAGES } from '@/store/gameStore';
 import type { Character } from '@/store/gameStore';
 import { audioManager } from '@/audio/AudioManager';
-
 // ─── Stat Bar ────────────────────────────────────────────────────────
 
 function StatBar({ label, value, maxValue, color, icon }: {
@@ -52,67 +51,49 @@ export default function CharacterSelect() {
     audioManager.playMusic('music-title');
   }, []);
 
-  // Refs to access current state inside interval/event callbacks
-  const myReadyRef = useRef(false);
-  const myCharIdRef = useRef<string | null>(null);
+  const navigatedRef = useRef(false);
 
-  // ── Online: listen for opponent events ────────────────────────────
+  // ── Online: Presence for character sync (reliable on late join) ──────
   useEffect(() => {
     if (!onlineMode || !matchChannel) return;
 
-    // Opponent picked their character
-    matchChannel.onEvent('CHAR_READY', ({ charId }: { charId: string }) => {
-      setOpponentCharId(charId);
-      setOpponentReady(true);
+    // Presence fires immediately on subscribe AND when anyone updates —
+    // no race condition possible
+    matchChannel.onPresenceSync((state) => {
+      const myId = useGameStore.getState().user?.id;
+      Object.entries(state).forEach(([key, metas]) => {
+        const meta = (metas as any[])[0];
+        if (!meta || key === myId) return;
+        if (meta.charId) {
+          setOpponentCharId(meta.charId);
+          setOpponentReady(true);
+        }
+      });
     });
 
-    // If opponent asks for our state (because they joined late), re-send if ready
-    matchChannel.onEvent('REQUEST_STATE', () => {
-      if (myReadyRef.current && myCharIdRef.current) {
-        matchChannel.sendEvent('CHAR_READY', { charId: myCharIdRef.current });
-      }
-    });
-
-    // Host broadcast the match start (client receives this)
+    // MATCH_START is one-time broadcast from host
     matchChannel.onEvent('MATCH_START', ({ p1CharId, p2CharId, stageId }: any) => {
-      const p1 = CHARACTERS.find(c => c.id === p1CharId)!;
-      const p2 = CHARACTERS.find(c => c.id === p2CharId)!;
+      if (navigatedRef.current) return;
+      navigatedRef.current = true;
+      const p1 = CHARACTERS.find(c => c.id === p1CharId);
+      const p2 = CHARACTERS.find(c => c.id === p2CharId);
       if (p1) selectCharacter(1, p1);
       if (p2) selectCharacter(2, p2);
       const stage = STAGES.find(s => s.id === stageId) ?? STAGES[0];
       useGameStore.getState().selectStage(stage);
       navigate('/play');
     });
-
-    // Ask opponent for their current state (handles the race where they sent
-    // CHAR_READY before we finished subscribing)
-    const askTimer = setTimeout(() => {
-      matchChannel.sendEvent('REQUEST_STATE', {});
-    }, 800);
-
-    // Retry: re-send our own ready state every 2s until opponent confirmed
-    const retryInterval = setInterval(() => {
-      if (myReadyRef.current && myCharIdRef.current) {
-        matchChannel.sendEvent('CHAR_READY', { charId: myCharIdRef.current });
-      }
-    }, 2000);
-
-    return () => {
-      clearTimeout(askTimer);
-      clearInterval(retryInterval);
-    };
   }, [onlineMode, matchChannel, selectCharacter, navigate]);
 
   // ─── Offline: assign CPU ──────────────────────────────────────────
   const handleSelect = useCallback((char: Character) => {
     if (onlineMode) {
-      // Online: set own character and signal ready
+      // Online: set own character and publish via Presence (opponent gets it
+      // immediately even if they joined after us)
       selectCharacter(1, char);
       setMyReady(true);
-      myReadyRef.current = true;
-      myCharIdRef.current = char.id;
       setStatusMsg('Waiting for opponent...');
-      matchChannel?.sendEvent('CHAR_READY', { charId: char.id });
+      matchChannel?.trackPresence({ charId: char.id, ready: true });
     } else {
       // Offline: pick P1, assign random CPU as P2
       selectCharacter(1, char);
