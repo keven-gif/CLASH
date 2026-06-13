@@ -54,10 +54,20 @@ export default function CharacterSelect() {
 
   const navigatedRef = useRef(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Online: DB poll — write on select, poll opponent's row ───────────
   useEffect(() => {
     if (!onlineMode || !matchOpponent) return;
+
+    // 45-second safety timeout — opponent may have disconnected
+    pollTimeoutRef.current = setTimeout(() => {
+      if (!navigatedRef.current) {
+        if (pollRef.current) clearInterval(pollRef.current);
+        setStatusMsg('Opponent disconnected. Returning to lobby...');
+        setTimeout(() => navigate('/lobby'), 2500);
+      }
+    }, 45_000);
 
     pollRef.current = setInterval(async () => {
       // Get user ID each tick in case AuthSync hadn't finished on mount
@@ -85,6 +95,7 @@ export default function CharacterSelect() {
         if (payload.start && !navigatedRef.current) {
           navigatedRef.current = true;
           clearInterval(pollRef.current!);
+          if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
           const p1 = CHARACTERS.find(c => c.id === payload.p1CharId);
           const p2 = CHARACTERS.find(c => c.id === payload.p2CharId);
           if (p1) selectCharacter(1, p1);
@@ -96,7 +107,10 @@ export default function CharacterSelect() {
       } catch { /* skip bad JSON */ }
     }, 1500);
 
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+    };
   }, [onlineMode, matchOpponent, selectCharacter, navigate]);
 
   // ─── Offline: assign CPU ──────────────────────────────────────────
@@ -129,10 +143,13 @@ export default function CharacterSelect() {
     if (navigatedRef.current) return;
     navigatedRef.current = true;
 
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+
     const stageId = 'battlefield';
     const myId = useGameStore.getState().user?.id;
 
-    // Write start signal to DB so client's poll picks it up
+    // Write start signal to own row so client's poll picks it up
     if (myId) {
       await supabase.from('match_queue')
         .update({ webrtc_offer: JSON.stringify({
@@ -149,7 +166,6 @@ export default function CharacterSelect() {
     if (p2) selectCharacter(2, p2);
     const stage = STAGES.find(s => s.id === stageId) ?? STAGES[0];
     useGameStore.getState().selectStage(stage);
-    if (pollRef.current) clearInterval(pollRef.current);
     navigate('/play');
   }, [isHost, player1Character, opponentCharId, selectCharacter, navigate]);
 

@@ -230,6 +230,10 @@ export default function Gameplay() {
       window.removeEventListener('keyup', onKeyUp);
       gameLoop.destroy();
       realtimeRef.current?.disconnect();
+      // Clean up match_queue row so future matchmaking isn't blocked
+      if (onlineMode && storeUser) {
+        import('@/supabase/api').then(({ api }) => api.leaveQueue(storeUser.id));
+      }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

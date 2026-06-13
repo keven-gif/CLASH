@@ -74,10 +74,10 @@ export class RealtimeChannel {
   }
 
   // ── Broadcast (for transient events like MATCH_START) ───────────────
-  sendEvent(event: string, data?: any): void {
+  sendEvent(event: string, data?: any, _retries = 0): void {
     if (!this.subscribed) {
-      // Queue the send until subscribed
-      setTimeout(() => this.sendEvent(event, data), 300);
+      if (_retries >= 10) return; // give up after ~3s
+      setTimeout(() => this.sendEvent(event, data, _retries + 1), 300);
       return;
     }
     this.channel.send({
