@@ -195,6 +195,7 @@ export function createFighter(characterId: string, startPos: Vector2): FighterSt
     isDead: false,
     coyoteTimer: 0,
     spawnPoint: { ...startPos },
+    usedUpSpecial: false,
   };
 }
 
@@ -479,8 +480,10 @@ function performSpecial(
 
   startAttack(fighter, attackType);
 
-  // Up special recovery
+  // Up special recovery — one use per airtime
   if (attackType === 'attackUSpecial') {
+    if (fighter.usedUpSpecial) return; // already used — cancel silently
+    fighter.usedUpSpecial = true;
     const stats = CHARACTER_STATS[fighter.characterId];
     fighter.velocity.y = -(stats?.jumpForce ?? 13) * 1.1;
     fighter.velocity.x = input.joystick.x * 5;
@@ -599,6 +602,7 @@ export function respawnFighter(fighter: FighterState): void {
   fighter.coyoteTimer = 0;
   fighter.isOnGround = false;
   fighter.canDoubleJump = true;
+  fighter.usedUpSpecial = false;
 }
 
 // ─── KO ──────────────────────────────────────────────────────────────

@@ -119,6 +119,7 @@ export interface FighterState {
   isDead: boolean;
   coyoteTimer: number; // frames of grace after leaving a platform (0-3)
   spawnPoint: { x: number; y: number }; // respawn position for this fighter
+  usedUpSpecial: boolean; // consumed once per airtime — prevents infinite up-B spam
 }
 
 // ─── Character Stats ─────────────────────────────────────────────────

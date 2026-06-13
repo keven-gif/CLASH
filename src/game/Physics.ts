@@ -173,6 +173,7 @@ export function checkFighterPlatformCollision(
     fighter.canDoubleJump = fighter.maxJumpCount > 1;
     fighter.isFastFalling = false;
     fighter.ledgeGrabsLeft = 2;
+    fighter.usedUpSpecial = false;
   } else if (fighter.isOnGround) {
     // Just left a platform — start coyote countdown
     fighter.coyoteTimer++;
