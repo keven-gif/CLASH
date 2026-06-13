@@ -25,7 +25,7 @@
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro",
-      "output": "static",
+      "output": "single",
       "name": "CLASH",
       "shortName": "CLASH",
       "description": "1v1 multiplayer battle game"
