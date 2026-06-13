@@ -99,7 +99,7 @@ function CharacterCard({ character, index, isSelected, isP1, isCPU, onSelect }: 
           <img
             src={character.image}
             alt={character.name}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover object-top"
             draggable={false}
           />
           {/* Gradient overlay — stronger at bottom for text readability */}
@@ -144,7 +144,7 @@ function CharacterCard({ character, index, isSelected, isP1, isCPU, onSelect }: 
 
           {/* Character name + archetype at bottom */}
           <div className="absolute bottom-0 left-0 right-0 px-3 pb-3 z-10">
-            <h3 className="font-orbitron font-bold text-[clamp(14px,1.8vw,22px)] tracking-wide text-text-primary leading-tight">
+            <h3 className="font-orbitron font-bold text-[clamp(9px,2.8vw,18px)] tracking-wide text-text-primary leading-tight">
               {character.name.toUpperCase()}
             </h3>
             {/* Archetype tag */}
@@ -256,9 +256,9 @@ export default function CharacterSelect() {
 
   return (
     <div className="relative w-screen h-screen bg-void overflow-hidden select-none flex flex-col">
-      {/* ─── Header (10vh) ─────────────────────────────────────── */}
+      {/* ─── Header ──────────────────────────────────────────────── */}
       <motion.nav
-        className="h-[10vh] flex-shrink-0 relative z-50 flex items-center px-4"
+        className="h-14 flex-shrink-0 relative z-50 flex items-center px-4"
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.1, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
@@ -286,8 +286,9 @@ export default function CharacterSelect() {
         </div>
       </motion.nav>
 
-      {/* ─── Character Cards Row (flex-1, fills remaining height) ── */}
-      <div className="flex-1 flex flex-row items-stretch min-h-0">
+      {/* ─── Character Cards Row ─────────────────────────────────── */}
+      {/* Cap height so portraits aren't cropped on tall narrow mobile screens */}
+      <div className="flex-1 min-h-0 max-h-[72vw] sm:max-h-none flex flex-row items-stretch">
         {CHARACTERS.map((char, i) => (
           <CharacterCard
             key={char.id}
@@ -301,8 +302,8 @@ export default function CharacterSelect() {
         ))}
       </div>
 
-      {/* ─── VS + Action Bar (10vh) ────────────────────────────── */}
-      <div className="h-[10vh] flex-shrink-0 relative z-40 flex items-center justify-center px-6 gap-4">
+      {/* ─── VS + Action Bar ─────────────────────────────────────── */}
+      <div className="flex-1 flex-shrink-0 relative z-40 flex items-center justify-center px-6 gap-4">
         {/* P1 Character (left side) */}
         <div className="flex-1 flex justify-end items-center">
           <AnimatePresence>
