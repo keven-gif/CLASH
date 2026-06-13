@@ -23,53 +23,54 @@ export function preloadCharacterImages(): void {
   loadCharacterImage('alchemist', `${base}characters/alchemist.png?v=2`);
   loadCharacterImage('gunner', `${base}characters/gunner.png?v=2`);
   loadCharacterImage('gunner-sheet', `${base}characters/blaze-sheet.png?v=1`);
+  loadCharacterImage('swordsman-sheet', `${base}characters/ace-sheet.png?v=1`);
 }
 
-// ─── Blaze Sprite Sheet Config ───────────────────────────────────────
-// Sheet: 1376×768, 8 cols × 3 rows → each frame 172×256 px
-const BLAZE_SHEET = {
-  frameW: 172,
-  frameH: 256,
-  cols: 8,
-  // row indices
-  rows: {
-    walk: 0,   // idle / walk / run
-    attack: 1, // melee attack & hit
-    jump: 2,   // jump / fall / double-jump
-  },
+// ─── Sprite Sheet Config ─────────────────────────────────────────────
+// All character sheets share the same layout:
+// 1376×768, 8 cols × 3 rows → each frame 172×256 px
+// Row 0 = walk/idle, Row 1 = attack/hit, Row 2 = jump/fall
+
+const SPRITE_SHEET_COLS = 8;
+const SPRITE_FRAME_W = 172;
+const SPRITE_FRAME_H = 256;
+const SPRITE_FRAME_RATE = 5; // game-frames per sprite-frame (~12 fps)
+
+// Characters that use sprite sheets: maps characterId → image cache key
+const SPRITE_SHEET_CHARS: Record<string, string> = {
+  gunner: 'gunner-sheet',
+  swordsman: 'swordsman-sheet',
 };
 
-function getBlazeRow(state: string): number {
+function getSpriteRow(state: string): number {
   if (
     state === 'jump' || state === 'fall' ||
     state === 'doubleJump' || state === 'dodgeAir'
-  ) return BLAZE_SHEET.rows.jump;
+  ) return 2;
   if (
     state.startsWith('attack') || state === 'special' ||
     state === 'hurt' || state === 'hitstun' ||
     state === 'launched' || state === 'knockback'
-  ) return BLAZE_SHEET.rows.attack;
-  return BLAZE_SHEET.rows.walk;
+  ) return 1;
+  return 0;
 }
 
-// Advance through the animation at ~12 fps worth of game frames (60 fps game)
-const BLAZE_FRAME_RATE = 5; // game-frames per sprite-frame
-
-function drawBlazeSprite(
+function drawSpriteSheet(
   ctx: CanvasRenderingContext2D,
+  cacheKey: string,
   x: number, y: number,
   w: number, h: number,
   direction: number,
   state: string,
   gameFrame: number
-): void {
-  const sheet = CHARACTER_IMAGES['gunner-sheet'];
-  if (!sheet || !sheet.complete || sheet.naturalWidth === 0) return;
+): boolean {
+  const sheet = CHARACTER_IMAGES[cacheKey];
+  if (!sheet || !sheet.complete || sheet.naturalWidth === 0) return false;
 
-  const row = getBlazeRow(state);
-  const col = Math.floor(gameFrame / BLAZE_FRAME_RATE) % BLAZE_SHEET.cols;
-  const sx = col * BLAZE_SHEET.frameW;
-  const sy = row * BLAZE_SHEET.frameH;
+  const row = getSpriteRow(state);
+  const col = Math.floor(gameFrame / SPRITE_FRAME_RATE) % SPRITE_SHEET_COLS;
+  const sx = col * SPRITE_FRAME_W;
+  const sy = row * SPRITE_FRAME_H;
 
   ctx.save();
   if (direction === -1) {
@@ -78,14 +79,14 @@ function drawBlazeSprite(
     ctx.translate(-x, 0);
   }
 
-  // Draw sprite centred on fighter bounding box
   ctx.drawImage(
     sheet,
-    sx, sy, BLAZE_SHEET.frameW, BLAZE_SHEET.frameH,
+    sx, sy, SPRITE_FRAME_W, SPRITE_FRAME_H,
     x - w / 2, y - h / 2, w, h
   );
 
   ctx.restore();
+  return true;
 }
 
 // ─── Stage Background Image Cache ────────────────────────────────────
@@ -130,9 +131,11 @@ function drawCharacterSilhouette(
   gameFrame: number
 ): void {
   // Blaze uses the sprite sheet instead of canvas shapes
-  if (characterId === 'gunner') {
-    drawBlazeSprite(ctx, x, y, width, height, direction, state, gameFrame);
-    return;
+  const sheetKey = SPRITE_SHEET_CHARS[characterId];
+  if (sheetKey) {
+    const drawn = drawSpriteSheet(ctx, sheetKey, x, y, width, height, direction, state, gameFrame);
+    if (drawn) return;
+    // Sheet not loaded yet — fall through to canvas silhouette as placeholder
   }
 
   const d = CHAR_DESIGN[characterId] ?? { skin: '#c8a882', body: '#333', accent: '#aaa', weapon: '#fff' };
