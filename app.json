@@ -37,6 +37,9 @@
           "backgroundColor": "#0a0a1a"
         }
       ]
-    ]
+    ],
+    "experiments": {
+      "baseUrl": "/CLASH"
+    }
   }
 }
