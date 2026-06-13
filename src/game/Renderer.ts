@@ -570,14 +570,8 @@ export function renderFighter(
 
   ctx.save();
 
-  // Flip based on direction
-  if (fighter.direction === -1) {
-    ctx.translate(x, y);
-    ctx.scale(-1, 1);
-    ctx.translate(-x, -y);
-  }
-
   // ── Character Silhouette ───────────────────────────────────────────
+  // Direction flipping is handled inside drawCharacterSilhouette / drawSpriteSheet
   if (fighter.hitFlash > 0) {
     // Hit flash: draw white rectangle
     ctx.fillStyle = '#FFFFFF';
