@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router';
-import { RealtimeChannel } from '@/game/online/RealtimeChannel';
-import type { RemoteInput } from '@/game/online/RealtimeChannel';
+import type { RealtimeChannel, RemoteInput } from '@/game/online/RealtimeChannel';
 import { useGameStore, CHARACTERS } from '@/store/gameStore';
 import type { Character } from '@/store/gameStore';
 import { GameLoop } from '@/game/GameLoop';
@@ -30,8 +29,8 @@ export default function Gameplay() {
   const resumeGame = useGameStore((s) => s.resumeGame);
   const onlineMode = useGameStore((s) => s.onlineMode);
 
-  const matchOpponent = useGameStore((s) => s.matchOpponent);
   const storeUser = useGameStore((s) => s.user);
+  const matchChannel = useGameStore((s) => s.matchChannel);
 
   const endMatch = useGameStore((s) => s.endMatch);
   const loseStock = useGameStore((s) => s.loseStock);
@@ -152,12 +151,12 @@ export default function Gameplay() {
     const ai = new AIController('medium');
     aiRef.current = ai;
 
-    // Online mode: use Supabase Realtime broadcast to sync opponent input
-    if (onlineMode && storeUser && matchOpponent) {
-      const matchId = [storeUser.id, matchOpponent.id].sort().join('_');
-      const rc = new RealtimeChannel(matchId, storeUser.id);
-      realtimeRef.current = rc;
-      rc.onRemoteInput((inp) => { latestRemoteInput.current = inp; });
+    // Online mode: reuse the channel already created in LobbyScreen (stored in game store).
+    // Creating a second channel with the same name would throw "cannot add callbacks after
+    // subscribe()" and kill this effect before gameLoop.start() is called.
+    if (onlineMode && matchChannel) {
+      realtimeRef.current = matchChannel;
+      matchChannel.onRemoteInput((inp) => { latestRemoteInput.current = inp; });
     }
 
     // Game loop
@@ -229,7 +228,11 @@ export default function Gameplay() {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       gameLoop.destroy();
-      realtimeRef.current?.disconnect();
+      // Disconnect the realtime channel and clear it from the store
+      if (onlineMode) {
+        realtimeRef.current?.disconnect();
+        useGameStore.getState().setMatchChannel(null);
+      }
       // Clean up match_queue row so future matchmaking isn't blocked
       if (onlineMode && storeUser) {
         import('@/supabase/api').then(({ api }) => api.leaveQueue(storeUser.id));
