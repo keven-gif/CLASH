@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 // from your Supabase dashboard: Settings → API
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://azwdrcjxjwkhwgquoine.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_1qiCC8AX4QGrsw4IFhxEiw_xcdGeUSY';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6d2RyY2p4andraHdncXVvaW5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNTczOTAsImV4cCI6MjA5NjczMzM5MH0.mZaO9imBp3hYst9TuvN_IY-sT611S1xbTYRVZZJJEpk';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   realtime: {
