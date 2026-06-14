@@ -4,9 +4,15 @@ import { api } from '@/supabase/api';
 export type MatchmakingState = 'idle' | 'searching' | 'found' | 'connecting' | 'ready' | 'failed';
 
 export interface MatchFound {
-  opponent: Profile;
+  opponents: Profile[];    // 1–3 opponents (total players = opponents.length + 1)
+  myPlayerIndex: number;   // 0 = host, 1–3 = guests
+  roomId: string;          // host's player_id, used as channel name
   isHost: boolean;
+  // Legacy compat
+  opponent: Profile;       // first opponent (same as opponents[0])
 }
+
+const SEARCH_TIMEOUT_MS = 30_000; // start with 1+ opponent after 30s
 
 export class MatchmakingManager {
   private state: MatchmakingState = 'idle';
@@ -14,48 +20,77 @@ export class MatchmakingManager {
   private onStateCb: ((s: MatchmakingState) => void) | null = null;
   private onMatch: ((m: MatchFound) => void) | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private searchStart = 0;
   private done = false;
 
   async startSearch(profile: Profile): Promise<void> {
     this.myProfile = profile;
     this.done = false;
+    this.searchStart = Date.now();
     this.setState('searching');
     await api.joinQueue(profile.id, profile.username, profile.rank);
-    // Poll every 2s — checks both host and client scenarios
     this.pollTimer = setInterval(() => this.poll(), 2000);
-    // Run immediately instead of waiting 2s for first tick
     this.poll();
   }
 
   private async poll(): Promise<void> {
     if (this.state !== 'searching' || this.done || !this.myProfile) return;
 
-    // 1. Check if someone else claimed us as their opponent (we are the client)
-    const hostRow = await api.findWhoMatchedMe(this.myProfile.id);
+    // 1. Am I already invited to a room by a host?
+    const hostRow = await api.findRoomForMe(this.myProfile.id);
     if (hostRow) {
       this.done = true;
       this.clearPoll();
       this.setState('found');
-      const oppProfile = await api.getProfile(hostRow.player_id);
-      if (!oppProfile) { this.setState('failed'); return; }
-      this.onMatch?.({ opponent: oppProfile, isHost: false });
+      const hostProfile = await api.getProfile(hostRow.player_id);
+      if (!hostProfile) { this.setState('failed'); return; }
+
+      // Determine my index: I'm position (indexOf in comma-separated list) + 1
+      const guestIds: string[] = (hostRow.matched_with as string).split(',');
+      const myIndexInGuests = guestIds.indexOf(this.myProfile.id);
+      const myPlayerIndex = myIndexInGuests + 1; // host is 0, guests are 1+
+
+      // Fetch all other guest profiles
+      const otherGuestIds = guestIds.filter(id => id !== this.myProfile!.id);
+      const otherGuests = await Promise.all(otherGuestIds.map(id => api.getProfile(id)));
+      const validOthers = otherGuests.filter(Boolean) as Profile[];
+
+      // opponents = host + any other guests before me in the list
+      const opponents = [hostProfile, ...validOthers];
+      this.onMatch?.({
+        opponents,
+        opponent: hostProfile,
+        myPlayerIndex,
+        roomId: hostRow.player_id,
+        isHost: false,
+      });
       return;
     }
 
-    // 2. Try to find a waiting opponent and become host
-    const oppRow = await api.findOpponent(this.myProfile.id, this.myProfile.rank);
-    if (oppRow) {
+    // 2. Try to collect opponents and become host
+    const elapsed = Date.now() - this.searchStart;
+    const maxOpponents = elapsed >= SEARCH_TIMEOUT_MS ? 1 : 3; // after timeout accept just 1
+    const oppRows = await api.findOpponents(this.myProfile.id, maxOpponents);
+
+    if (oppRows.length > 0) {
       this.done = true;
       this.clearPoll();
       this.setState('found');
-      const oppPlayerId: string = oppRow.player_id;
-      await api.markMatched(this.myProfile.id, oppPlayerId);
-      const oppProfile = await api.getProfile(oppPlayerId);
-      if (!oppProfile) { this.setState('failed'); return; }
-      // Tie-breaker: if both players find each other simultaneously, the one with
-      // the lexicographically smaller UUID is host. The other yielded here.
-      const amHost = this.myProfile.id < oppPlayerId;
-      this.onMatch?.({ opponent: oppProfile, isHost: amHost });
+
+      const guestIds = oppRows.map((r: any) => r.player_id as string);
+      await api.markMatchedRoom(this.myProfile.id, guestIds);
+
+      const guestProfiles = await Promise.all(guestIds.map(id => api.getProfile(id)));
+      const opponents = guestProfiles.filter(Boolean) as Profile[];
+      if (opponents.length === 0) { this.setState('failed'); return; }
+
+      this.onMatch?.({
+        opponents,
+        opponent: opponents[0],
+        myPlayerIndex: 0,
+        roomId: this.myProfile.id,
+        isHost: true,
+      });
     }
   }
 
