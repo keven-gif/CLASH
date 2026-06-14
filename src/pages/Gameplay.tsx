@@ -514,9 +514,9 @@ export default function Gameplay() {
                 aria-label="Special attack"
                 className="w-16 h-16 rounded-full border-2 flex items-center justify-center font-orbitron font-bold text-xl pointer-events-auto active:scale-[0.88] transition-transform"
                 style={{
-                  backgroundColor: activeButtons.special ? 'rgba(0,229,212,0.35)' : 'rgba(0,229,212,0.15)',
-                  borderColor: 'rgba(0,229,212,0.35)',
-                  color: '#00E5D4',
+                  backgroundColor: activeButtons.special ? 'rgba(77,166,255,0.5)' : 'rgba(77,166,255,0.25)',
+                  borderColor: '#4DA6FF',
+                  color: '#4DA6FF',
                 }}
                 onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); pressButton('special'); }}
                 onTouchEnd={(e) => { e.stopPropagation(); releaseButton('special'); }}
@@ -529,9 +529,9 @@ export default function Gameplay() {
                 aria-label="Attack"
                 className="w-16 h-16 rounded-full border-2 flex items-center justify-center font-orbitron font-bold text-xl pointer-events-auto active:scale-[0.88] transition-transform"
                 style={{
-                  backgroundColor: activeButtons.attack ? 'rgba(240,240,245,0.35)' : 'rgba(240,240,245,0.15)',
-                  borderColor: 'rgba(240,240,245,0.35)',
-                  color: '#F0F0F5',
+                  backgroundColor: activeButtons.attack ? 'rgba(77,166,255,0.5)' : 'rgba(77,166,255,0.25)',
+                  borderColor: '#4DA6FF',
+                  color: '#4DA6FF',
                 }}
                 onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); pressButton('attack'); }}
                 onTouchEnd={(e) => { e.stopPropagation(); releaseButton('attack'); }}
@@ -545,38 +545,38 @@ export default function Gameplay() {
               {/* Jump */}
               <button
                 aria-label="Jump"
-                className="w-14 h-14 rounded-full border-[1.5px] flex items-center justify-center pointer-events-auto active:scale-[0.88] transition-transform"
+                className="w-14 h-14 rounded-full border-2 flex items-center justify-center pointer-events-auto active:scale-[0.88] transition-transform"
                 style={{
-                  backgroundColor: activeButtons.jump ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)',
-                  borderColor: 'rgba(255,255,255,0.2)',
+                  backgroundColor: activeButtons.jump ? 'rgba(77,166,255,0.5)' : 'rgba(77,166,255,0.25)',
+                  borderColor: '#4DA6FF',
                 }}
                 onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); pressButton('jump'); }}
                 onTouchEnd={(e) => { e.stopPropagation(); releaseButton('jump'); }}
               >
-                <ChevronUp size={22} strokeWidth={2.5} className="text-text-secondary" />
+                <ChevronUp size={22} strokeWidth={2.5} className="text-[#4DA6FF]" />
               </button>
 
               {/* Grab */}
               <button
                 aria-label="Grab"
-                className="w-14 h-14 rounded-full border-[1.5px] flex items-center justify-center pointer-events-auto active:scale-[0.88] transition-transform"
+                className="w-14 h-14 rounded-full border-2 flex items-center justify-center pointer-events-auto active:scale-[0.88] transition-transform"
                 style={{
-                  backgroundColor: activeButtons.grab ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)',
-                  borderColor: 'rgba(255,255,255,0.15)',
+                  backgroundColor: activeButtons.grab ? 'rgba(77,166,255,0.5)' : 'rgba(77,166,255,0.25)',
+                  borderColor: '#4DA6FF',
                 }}
                 onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); pressButton('grab'); }}
                 onTouchEnd={(e) => { e.stopPropagation(); releaseButton('grab'); }}
               >
-                <Hand size={18} strokeWidth={2} className="text-text-secondary" />
+                <Hand size={18} strokeWidth={2} className="text-[#4DA6FF]" />
               </button>
 
               {/* Shield */}
               <button
                 aria-label="Shield"
-                className="w-14 h-14 rounded-full border-[1.5px] flex items-center justify-center pointer-events-auto active:scale-[0.88] transition-transform"
+                className="w-14 h-14 rounded-full border-2 flex items-center justify-center pointer-events-auto active:scale-[0.88] transition-transform"
                 style={{
-                  backgroundColor: activeButtons.shield ? 'rgba(77,166,255,0.3)' : 'rgba(77,166,255,0.12)',
-                  borderColor: 'rgba(77,166,255,0.3)',
+                  backgroundColor: activeButtons.shield ? 'rgba(77,166,255,0.5)' : 'rgba(77,166,255,0.25)',
+                  borderColor: '#4DA6FF',
                 }}
                 onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); pressButton('shield'); }}
                 onTouchEnd={(e) => { e.stopPropagation(); releaseButton('shield'); }}
