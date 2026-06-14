@@ -324,41 +324,23 @@ export default function StageSelect() {
   const showHazardToggle = currentStage?.id === 'hazard';
 
   return (
-    <div className="relative w-screen h-screen bg-void overflow-hidden select-none flex flex-col">
+    <div className="relative w-screen bg-void overflow-hidden select-none flex flex-col" style={{ height: '100dvh' }}>
       {/* ─── Header ────────────────────────────────────────────── */}
-      <motion.nav
-        className="relative z-50 flex items-start px-6 pt-4 pb-2"
-        initial={{ opacity: 0, y: -30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.1, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
-      >
-        {/* Back button */}
-        <motion.button
+      <div className="h-14 flex-shrink-0 flex items-center px-4 relative z-50">
+        <button
           onClick={handleBack}
-          className="flex items-center justify-center w-11 h-11 rounded-full text-text-secondary active:text-text-primary transition-colors duration-fast mt-1"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2, duration: 0.3 }}
-          whileTap={{ scale: 0.9 }}
+          className="flex items-center justify-center w-10 h-10 rounded-full text-text-secondary active:text-text-primary"
           aria-label="Go back"
         >
-          <ChevronLeft size={28} strokeWidth={2} />
-        </motion.button>
-
-        {/* Title */}
-        <div className="absolute left-1/2 -translate-x-1/2 pt-1 text-center">
-          <h1 className="font-orbitron font-bold text-[28px] tracking-screen-title leading-tight text-text-primary">
-            CHOOSE YOUR
-          </h1>
-          <h1 className="font-orbitron font-bold text-[28px] tracking-screen-title leading-tight text-text-primary">
-            STAGE
-          </h1>
-          <div className="mx-auto mt-1 w-[60px] h-[2px] rounded-full bg-hp-full" />
-        </div>
-      </motion.nav>
+          <ChevronLeft size={26} strokeWidth={2} />
+        </button>
+        <h1 className="absolute left-1/2 -translate-x-1/2 font-orbitron font-bold text-[18px] tracking-widest text-text-primary">
+          CHOOSE YOUR STAGE
+        </h1>
+      </div>
 
       {/* ─── Stage Carousel ────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col px-6 gap-3 overflow-hidden min-h-0">
+      <div className="flex-1 flex flex-col px-4 gap-2 overflow-hidden min-h-0">
         {/* Scrollable carousel */}
         <motion.div
           ref={scrollRef}
@@ -431,7 +413,7 @@ export default function StageSelect() {
       </div>
 
       {/* ─── READY TO FIGHT! Button ────────────────────────────── */}
-      <div className="px-6 pb-4 flex-shrink-0">
+      <div className="px-4 flex-shrink-0" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
         <motion.button
           onClick={handleStartBattle}
           className="w-full h-14 rounded-[14px] font-rajdhani font-bold text-[20px] uppercase tracking-wider transition-all duration-normal"
