@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Globe, Users, Zap, Trophy, Crown,
-  Send, User, Wifi, WifiOff, Loader, Shield, Swords
+  User, Wifi, WifiOff, Swords
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { MatchmakingManager } from '@/game/online';
@@ -14,13 +14,6 @@ import { RealtimeChannel } from '@/game/online/RealtimeChannel';
 type Screen = 'menu' | 'searching' | 'room' | 'playing' | 'results';
 type Tab = 'play' | 'rooms' | 'leaderboard' | 'settings';
 
-interface LobbyPlayer {
-  playerId: string;
-  username: string;
-  character: string;
-  ready: boolean;
-  isHost: boolean;
-}
 
 export default function LobbyScreen() {
   const navigate = useNavigate();
@@ -36,49 +29,17 @@ export default function LobbyScreen() {
   // UI State
   const [screen, setScreen] = useState<Screen>('menu');
   const [activeTab, setActiveTab] = useState<Tab>('play');
-  const [lobbyPlayers, setLobbyPlayers] = useState<LobbyPlayer[]>([]);
   const [opponent, setOpponent] = useState<MatchFound | null>(null);
   const [joinCode, setJoinCode] = useState('');
   const [selectedCharacter, setSelectedCharacter] = useState('assassin');
   useEffect(() => { selectedCharacterRef.current = selectedCharacter; }, [selectedCharacter]);
   const [isReady, setIsReady] = useState(false);
-  const [countdown, setCountdown] = useState(0);
-  const [chatMessages, setChatMessages] = useState<{ playerId: string; username: string; message: string }[]>([]);
-  const [chatInput, setChatInput] = useState('');
+  const [opponentReady, setOpponentReady] = useState(false); // tracked separately to avoid effect overwrite
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState('');
-  const matchResults: any[] = [];
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const selectedCharacterRef = useRef(selectedCharacter);
-
-  // ── Build lobby players from match state ─────────────────────────
-  useEffect(() => {
-    if (!user) return;
-
-    const me: LobbyPlayer = {
-      playerId: user.id,
-      username: user.username,
-      character: selectedCharacter,
-      ready: isReady,
-      isHost: opponent?.isHost ?? true,
-    };
-
-    if (opponent && (mmState === 'found' || mmState === 'connecting' || mmState === 'ready')) {
-      const opp: LobbyPlayer = {
-        playerId: opponent.opponent.id,
-        username: opponent.opponent.username,
-        character: 'swordsman',
-        ready: false,
-        isHost: !opponent.isHost,
-      };
-      setLobbyPlayers([me, opp]);
-    } else if (mmState === 'searching') {
-      setLobbyPlayers([me]);
-    } else {
-      setLobbyPlayers([]);
-    }
-  }, [user, opponent, mmState, selectedCharacter, isReady]);
 
   // ── Actions ──────────────────────────────────────────────────────
   const handleQuickMatch = useCallback(async () => {
@@ -88,7 +49,6 @@ export default function LobbyScreen() {
     setElapsed(0);
     setIsReady(false);
     setOpponent(null);
-    setChatMessages([]);
     setScreen('searching');
 
     if (timerRef.current) clearInterval(timerRef.current);
@@ -120,9 +80,7 @@ export default function LobbyScreen() {
 
       // Listen for opponent's ready signal
       ch.onEvent('player_ready', () => {
-        setLobbyPlayers(prev => prev.map(p =>
-          p.playerId !== myId ? { ...p, ready: true } : p
-        ));
+        setOpponentReady(true);
         opponentReadyRef.current = true;
 
         // If we're already ready AND we're host, send go signal now
@@ -164,9 +122,10 @@ export default function LobbyScreen() {
     if (timerRef.current) clearInterval(timerRef.current);
     if (cdTimerRef.current) clearInterval(cdTimerRef.current);
     if (!matchFoundRef.current) await mmRef.current?.cancel();
-    setCountdown(0);
     setOpponent(null);
     setIsReady(false);
+    setOpponentReady(false);
+    opponentReadyRef.current = false;
     setScreen('menu');
   }, []);
 
@@ -209,21 +168,14 @@ export default function LobbyScreen() {
     }
   }, [isReady, opponent, navigate, setOnlineMode, setIsHost, setMatchOpponent]);
 
-  const handleSendChat = useCallback(() => {
-    if (chatInput.trim() && user) {
-      setChatMessages(prev => [...prev, { playerId: user.id, username: user.username, message: chatInput.trim() }]);
-      setChatInput('');
-    }
-  }, [chatInput, user]);
-
   const handleLeave = useCallback(async () => {
     if (timerRef.current) clearInterval(timerRef.current);
     if (cdTimerRef.current) clearInterval(cdTimerRef.current);
     if (!matchFoundRef.current) await mmRef.current?.cancel();
     setScreen('menu');
     setIsReady(false);
-    setLobbyPlayers([]);
-    setCountdown(0);
+    setOpponentReady(false);
+    opponentReadyRef.current = false;
     setOpponent(null);
   }, []);
 
@@ -462,225 +414,172 @@ export default function LobbyScreen() {
               className="h-full flex flex-col"
               initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}
             >
-              {/* Room Info */}
-              <div className="flex-shrink-0 p-4 border-b border-border-subtle">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-rajdhani text-[11px] text-text-muted uppercase tracking-wider">Matchmaking</p>
-                    <div className="flex items-center gap-2">
-                      {mmState === 'searching' ? (
-                        <span className="font-orbitron font-bold text-[18px] text-[#FFB800] tracking-wider">SEARCHING</span>
-                      ) : opponent ? (
-                        <span className="font-orbitron font-bold text-[18px] text-accent-cyan tracking-wider">MATCH FOUND</span>
-                      ) : (
-                        <span className="font-orbitron font-bold text-[24px] text-accent-cyan tracking-widest">----</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-rajdhani text-[11px] text-text-muted uppercase tracking-wider">Players</p>
-                    <p className="font-orbitron font-bold text-[18px] text-text-primary">{lobbyPlayers.length}/2</p>
-                  </div>
+              {/* Status bar */}
+              <div className="flex-shrink-0 px-4 pt-3 pb-2 flex items-center justify-between">
+                <div>
+                  <p className="font-rajdhani text-[10px] text-text-muted uppercase tracking-widest">Matchmaking</p>
+                  <p className="font-orbitron font-bold text-[16px] text-accent-cyan tracking-wider">
+                    {mmState === 'searching' ? 'SEARCHING...' : 'MATCH FOUND'}
+                  </p>
                 </div>
+                <p className="font-orbitron font-bold text-[22px] text-text-primary">
+                  {mmState === 'searching' ? '1' : '2'}<span className="text-text-muted text-[14px]">/2</span>
+                </p>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4">
-                {/* Searching State - Radar Animation */}
-                {mmState === 'searching' && !opponent && (
+              {/* ── SEARCHING: radar ── */}
+              {mmState === 'searching' && !opponent && (
+                <div className="flex-1 flex flex-col items-center justify-center gap-4">
+                  <div className="relative w-28 h-28">
+                    <motion.div className="absolute inset-0 rounded-full border-2 border-accent-cyan/20"
+                      animate={{ scale: [1, 1.6, 1], opacity: [0.5, 0, 0.5] }}
+                      transition={{ duration: 2, repeat: Infinity }} />
+                    <motion.div className="absolute inset-4 rounded-full border-2 border-accent-cyan/30"
+                      animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0.6] }}
+                      transition={{ duration: 2, repeat: Infinity, delay: 0.3 }} />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Globe size={36} className="text-accent-cyan" />
+                    </div>
+                  </div>
+                  <p className="font-rajdhani text-[13px] text-text-muted">Finding an opponent...</p>
+                  <p className="font-orbitron text-[13px] text-accent-cyan tabular-nums">{formatTime(elapsed)}</p>
+                </div>
+              )}
+
+              {/* ── MATCH FOUND: compact mobile layout ── */}
+              {opponent && (
+                <div className="flex-1 flex flex-col min-h-0 px-4 pb-2">
+
+                  {/* VS row */}
                   <motion.div
-                    className="flex flex-col items-center justify-center py-12 mb-4"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    className="flex items-center justify-center gap-4 py-3"
+                    initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
                   >
-                    <div className="relative w-32 h-32 mb-6">
-                      <motion.div
-                        className="absolute inset-0 rounded-full border-2 border-accent-cyan/20"
-                        animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                      />
-                      <motion.div
-                        className="absolute inset-4 rounded-full border-2 border-accent-cyan/30"
-                        animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0.6] }}
-                        transition={{ duration: 2, repeat: Infinity, delay: 0.3 }}
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Globe size={40} className="text-accent-cyan" />
+                    <div className="text-center flex-1">
+                      <div className="w-12 h-12 rounded-full bg-accent-cyan/20 border-2 border-accent-cyan flex items-center justify-center mx-auto mb-1">
+                        <User size={20} className="text-accent-cyan" />
                       </div>
+                      <p className="font-rajdhani font-semibold text-[11px] text-text-primary truncate max-w-[90px] mx-auto">{user?.username}</p>
                     </div>
-                    <h2 className="font-orbitron font-bold text-[20px] text-text-primary mb-2">SEARCHING</h2>
-                    <p className="font-rajdhani text-[14px] text-text-muted mb-1">Finding an opponent...</p>
-                    <p className="font-orbitron text-[14px] text-accent-cyan tabular-nums">{formatTime(elapsed)}</p>
+                    <span className="font-orbitron font-black text-[20px] text-text-muted flex-shrink-0">VS</span>
+                    <div className="text-center flex-1">
+                      <div className="w-12 h-12 rounded-full bg-[#E81D2D]/20 border-2 border-[#E81D2D] flex items-center justify-center mx-auto mb-1">
+                        <User size={20} className="text-[#E81D2D]" />
+                      </div>
+                      <p className="font-rajdhani font-semibold text-[11px] text-text-primary truncate max-w-[90px] mx-auto">{opponent.opponent.username}</p>
+                    </div>
                   </motion.div>
-                )}
 
-                {/* Found State - VS Display */}
-                {opponent && (mmState === 'found' || mmState === 'connecting' || mmState === 'ready') && (
-                  <motion.div
-                    className="flex flex-col items-center justify-center py-8 mb-4"
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                  >
-                    <h2 className="font-orbitron font-bold text-[16px] text-accent-cyan mb-6">OPPONENT FOUND</h2>
-                    <div className="flex items-center gap-6 mb-6">
-                      <div className="text-center">
-                        <div className="w-14 h-14 rounded-full bg-accent-cyan/20 border-2 border-accent-cyan flex items-center justify-center mx-auto mb-2">
-                          <User size={24} className="text-accent-cyan" />
-                        </div>
-                        <p className="font-rajdhani font-semibold text-[13px] text-text-primary">{user?.username || 'You'}</p>
-                      </div>
-                      <div className="font-orbitron font-black text-[24px] text-text-secondary">VS</div>
-                      <div className="text-center">
-                        <div className="w-14 h-14 rounded-full bg-[#E81D2D]/20 border-2 border-[#E81D2D] flex items-center justify-center mx-auto mb-2">
-                          <User size={24} className="text-[#E81D2D]" />
-                        </div>
-                        <p className="font-rajdhani font-semibold text-[13px] text-text-primary">{opponent.opponent.username}</p>
-                      </div>
-                    </div>
-                    {mmState === 'connecting' && (
-                      <div className="flex items-center gap-2 text-[#4DA6FF]">
-                        <Loader size={16} className="animate-spin" />
-                        <span className="font-rajdhani text-[13px]">Establishing P2P connection...</span>
-                      </div>
-                    )}
-                    {mmState === 'ready' && (
-                      <div className="flex items-center gap-2 text-accent-cyan">
-                        <Shield size={16} />
-                        <span className="font-rajdhani text-[13px]">Connection ready!</span>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-
-                {/* Player List */}
-                <div className="grid grid-cols-2 gap-3 max-w-[480px] mx-auto">
-                  {lobbyPlayers.map((player, i) => {
-                    const char = CHARACTERS.find(c => c.id === player.character);
-                    return (
-                      <motion.div
-                        key={player.playerId}
-                        className={`bg-bg-elevated border rounded-2xl p-4 text-center ${
-                          player.ready ? 'border-accent-cyan/50' : 'border-border-subtle'
-                        }`}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: i * 0.05 }}
-                      >
-                        <div className="w-14 h-14 rounded-full mx-auto mb-2 overflow-hidden border-2" style={{ borderColor: char?.accentColor || '#00E5D4' }}>
-                          {char && <img src={char.image} alt="" className="w-full h-full object-cover" />}
-                        </div>
-                        <p className="font-rajdhani font-semibold text-[13px] text-text-primary truncate">{player.username}</p>
-                        <div className="flex items-center justify-center gap-1 mt-1">
-                          {player.isHost && <Crown size={10} className="text-[#FFB800]" />}
-                          <span className={`font-rajdhani text-[10px] uppercase tracking-wider ${player.ready ? 'text-accent-cyan' : 'text-text-muted'}`}>
-                            {player.ready ? 'Ready' : 'Not Ready'}
-                          </span>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-
-                  {/* Empty slots */}
-                  {Array.from({ length: Math.max(0, 4 - lobbyPlayers.length) }).map((_, i) => (
-                    <div key={`empty-${i}`} className="bg-bg-elevated/50 border border-dashed border-border-subtle rounded-2xl p-4 text-center">
-                      <div className="w-14 h-14 rounded-full mx-auto mb-2 bg-bg-dark/50 flex items-center justify-center">
-                        <Users size={20} className="text-text-muted/30" />
-                      </div>
-                      <p className="font-rajdhani text-[13px] text-text-muted/50">Waiting...</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Character Select */}
-                <div className="mt-4 max-w-[480px] mx-auto">
-                  <p className="font-rajdhani text-[11px] text-text-muted uppercase tracking-wider mb-2">Select Character</p>
-                  <div className="flex gap-2">
-                    {CHARACTERS.map(char => (
-                      <button
-                        key={char.id}
-                        onClick={() => setSelectedCharacter(char.id)}
-                        className={`w-12 h-12 rounded-xl overflow-hidden border-2 transition-all ${
-                          selectedCharacter === char.id ? 'border-accent-cyan scale-110' : 'border-transparent opacity-60 hover:opacity-100'
-                        }`}
-                      >
-                        <img src={char.image} alt={char.name} className="w-full h-full object-cover" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Chat */}
-                <div className="mt-4 bg-bg-elevated border border-border-subtle rounded-2xl p-3 max-w-[480px] mx-auto">
-                  <div className="h-24 overflow-y-auto mb-2 space-y-1">
-                    {chatMessages.length === 0 && (
-                      <p className="font-rajdhani text-[12px] text-text-muted text-center py-4">No messages yet</p>
-                    )}
-                    {chatMessages.map((msg, i) => (
-                      <p key={i} className="font-rajdhani text-[12px]">
-                        <span className="text-accent-cyan font-semibold">{msg.username}:</span>
-                        <span className="text-text-secondary ml-1">{msg.message}</span>
-                      </p>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
-                      placeholder="Type a message..."
-                      className="flex-1 h-9 px-3 rounded-lg bg-bg-dark border border-border-subtle text-text-primary font-rajdhani text-[13px] placeholder:text-text-muted focus:border-accent-cyan focus:outline-none"
-                    />
-                    <button onClick={handleSendChat} className="h-9 w-9 rounded-lg bg-accent-cyan flex items-center justify-center text-bg-dark">
-                      <Send size={14} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Bar */}
-              <div className="flex-shrink-0 p-4 border-t border-border-subtle">
-                <div className="flex gap-3 max-w-[480px] mx-auto">
-                  <motion.button
-                    onClick={handleCancel}
-                    className="h-12 px-5 rounded-xl border border-border-subtle text-text-secondary font-rajdhani font-semibold tracking-wider hover:border-[#E81D2D] hover:text-[#FF6B6B] transition-colors"
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    {mmState === 'searching' ? 'CANCEL' : 'LEAVE'}
-                  </motion.button>
-                  {opponent && (
-                    <motion.button
-                      onClick={handleReady}
-                      className={`flex-1 h-12 rounded-xl font-rajdhani font-bold tracking-wider transition-colors ${
-                        isReady
-                          ? 'bg-accent-cyan text-bg-dark'
-                          : 'bg-bg-elevated border border-border-subtle text-text-primary hover:border-accent-cyan'
-                      }`}
-                      whileTap={{ scale: 0.97 }}
+                  {/* Player ready cards — 2 side by side, NO empty slots */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    {/* Me */}
+                    <motion.div
+                      className={`rounded-2xl p-3 text-center border-2 transition-colors ${isReady ? 'border-accent-cyan bg-accent-cyan/10' : 'border-border-subtle bg-bg-elevated'}`}
+                      initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                     >
-                      {isReady ? 'READY!' : 'READY UP'}
-                    </motion.button>
+                      {(() => { const char = CHARACTERS.find(c => c.id === selectedCharacter); return (
+                        <div className="w-14 h-14 rounded-full mx-auto mb-2 overflow-hidden border-2" style={{ borderColor: char?.accentColor || '#00E5D4' }}>
+                          {char && <img src={char.image} alt="" className="w-full h-full object-cover object-top" />}
+                        </div>
+                      ); })()}
+                      <p className="font-rajdhani font-semibold text-[12px] text-text-primary truncate">{user?.username}</p>
+                      <div className="flex items-center justify-center gap-1 mt-1">
+                        {opponent.isHost && <Crown size={9} className="text-[#FFB800]" />}
+                        <span className={`font-rajdhani text-[10px] uppercase tracking-wider font-bold ${isReady ? 'text-accent-cyan' : 'text-text-muted'}`}>
+                          {isReady ? '✓ READY' : 'NOT READY'}
+                        </span>
+                      </div>
+                    </motion.div>
+
+                    {/* Opponent */}
+                    <motion.div
+                      className={`rounded-2xl p-3 text-center border-2 transition-colors ${opponentReady ? 'border-accent-cyan bg-accent-cyan/10' : 'border-border-subtle bg-bg-elevated'}`}
+                      initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.05 }}
+                    >
+                      <div className="w-14 h-14 rounded-full mx-auto mb-2 bg-[#E81D2D]/20 border-2 border-[#E81D2D] flex items-center justify-center">
+                        <User size={22} className="text-[#E81D2D]" />
+                      </div>
+                      <p className="font-rajdhani font-semibold text-[12px] text-text-primary truncate">{opponent.opponent.username}</p>
+                      <div className="flex items-center justify-center gap-1 mt-1">
+                        {!opponent.isHost && <Crown size={9} className="text-[#FFB800]" />}
+                        <span className={`font-rajdhani text-[10px] uppercase tracking-wider font-bold ${opponentReady ? 'text-accent-cyan' : 'text-text-muted'}`}>
+                          {opponentReady ? '✓ READY' : 'NOT READY'}
+                        </span>
+                      </div>
+                    </motion.div>
+                  </div>
+
+                  {/* Character picker */}
+                  <div className="mb-3">
+                    <p className="font-rajdhani text-[10px] text-text-muted uppercase tracking-widest mb-2">Select Character</p>
+                    <div className="flex gap-2 justify-center">
+                      {CHARACTERS.map(char => (
+                        <button
+                          key={char.id}
+                          onClick={() => setSelectedCharacter(char.id)}
+                          className="rounded-xl overflow-hidden border-2 transition-all active:scale-90"
+                          style={{
+                            width: selectedCharacter === char.id ? 52 : 42,
+                            height: selectedCharacter === char.id ? 52 : 42,
+                            borderColor: selectedCharacter === char.id ? char.accentColor : 'transparent',
+                            opacity: selectedCharacter === char.id ? 1 : 0.55,
+                          }}
+                        >
+                          <img src={char.image} alt={char.name} className="w-full h-full object-cover object-top" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Status hint */}
+                  {isReady && !opponentReady && (
+                    <p className="text-center font-rajdhani text-[12px] text-text-muted animate-pulse">
+                      Waiting for opponent to ready up...
+                    </p>
+                  )}
+                  {isReady && opponentReady && (
+                    <p className="text-center font-rajdhani text-[12px] text-accent-cyan font-semibold">
+                      Both ready! Starting...
+                    </p>
                   )}
                 </div>
-              </div>
-            </motion.div>
-          )}
+              )}
 
-          {/* ── COUNTDOWN OVERLAY ── */}
-          {countdown > 0 && (
-            <motion.div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            >
-              <motion.div
-                key={countdown}
-                className="font-orbitron font-black text-[120px] text-accent-cyan"
-                initial={{ scale: 2, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.5, opacity: 0 }}
-                transition={{ duration: 0.5 }}
-              >
-                {countdown}
-              </motion.div>
+              {/* Action Bar — always visible at bottom */}
+              <div className="flex-shrink-0 px-4 pb-safe-bottom" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+                {opponent ? (
+                  <div className="flex gap-3">
+                    <motion.button
+                      onClick={handleCancel}
+                      className="h-14 px-5 rounded-2xl border border-border-subtle text-text-secondary font-rajdhani font-semibold text-[15px] tracking-wider active:border-[#E81D2D] active:text-[#FF6B6B] transition-colors"
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      LEAVE
+                    </motion.button>
+                    <motion.button
+                      onClick={handleReady}
+                      disabled={isReady}
+                      className={`flex-1 h-14 rounded-2xl font-rajdhani font-bold text-[18px] uppercase tracking-wider transition-all ${
+                        isReady
+                          ? 'bg-accent-cyan/20 border-2 border-accent-cyan text-accent-cyan'
+                          : 'bg-accent-cyan text-bg-dark'
+                      }`}
+                      style={{ boxShadow: isReady ? 'none' : '0 4px 20px rgba(0,229,212,0.35)' }}
+                      whileTap={{ scale: isReady ? 1 : 0.97 }}
+                    >
+                      {isReady ? '✓ READY!' : 'READY UP'}
+                    </motion.button>
+                  </div>
+                ) : (
+                  <motion.button
+                    onClick={handleCancel}
+                    className="w-full h-14 rounded-2xl border border-border-subtle text-text-secondary font-rajdhani font-semibold text-[15px] tracking-wider"
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    CANCEL
+                  </motion.button>
+                )}
+              </div>
             </motion.div>
           )}
 
@@ -714,26 +613,7 @@ export default function LobbyScreen() {
               <Trophy size={48} className="text-[#FFB800] mb-4" />
               <h2 className="font-orbitron font-bold text-[24px] text-text-primary mb-6">MATCH RESULTS</h2>
 
-              <div className="w-full max-w-[400px] space-y-2">
-                {matchResults.map((result, i) => (
-                  <motion.div
-                    key={result.playerId}
-                    className={`flex items-center gap-3 p-3 rounded-xl border ${
-                      result.isWinner ? 'bg-[#FFB800]/10 border-[#FFB800]/30' : 'bg-bg-elevated border-border-subtle'
-                    }`}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                  >
-                    <span className="font-orbitron font-bold text-[18px] text-text-muted w-6">{i + 1}</span>
-                    <div className="flex-1">
-                      <p className="font-rajdhani font-semibold text-[14px] text-text-primary">{result.username}</p>
-                      <p className="font-rajdhani text-[12px] text-text-muted">{result.lives} lives | {result.damage}%</p>
-                    </div>
-                    {result.isWinner && <Crown size={18} className="text-[#FFB800]" />}
-                  </motion.div>
-                ))}
-              </div>
+              <p className="font-rajdhani text-[13px] text-text-muted">Match complete</p>
 
               <div className="flex gap-3 mt-6">
                 <button
