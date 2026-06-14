@@ -597,12 +597,6 @@ export function renderFighter(
     }
   }
 
-  // White border outline for visibility against any background
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-  ctx.lineWidth = 2 * scale;
-  roundRect(ctx, x - w / 2, y - h / 2, w, h, 6 * scale);
-  ctx.stroke();
-
   ctx.restore();
 
   // Damage % above fighter head
