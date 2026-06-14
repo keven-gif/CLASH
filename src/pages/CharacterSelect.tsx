@@ -175,7 +175,7 @@ export default function CharacterSelect() {
   const opponentChar  = opponentCharId ? CHARACTERS.find(c => c.id === opponentCharId) : null;
 
   return (
-    <div className="relative w-screen h-screen bg-void overflow-hidden select-none flex flex-col">
+    <div className="relative w-screen bg-void overflow-hidden select-none flex flex-col" style={{ height: '100dvh' }}>
 
       {/* ─── Header ──────────────────────────────────────────────── */}
       <div className="h-14 flex-shrink-0 flex items-center px-4 relative z-50">
@@ -209,7 +209,7 @@ export default function CharacterSelect() {
         {/* Character card — fixed height so buttons are always visible */}
         <div className="relative mx-4 rounded-2xl overflow-hidden border-2 transition-all duration-300"
           style={{
-            height: 'min(52vh, 340px)',
+            height: 'min(42vh, 260px)',
             borderColor: char.accentColor + '99',
             boxShadow: `0 0 32px ${char.accentColor}30`,
           }}
@@ -294,7 +294,7 @@ export default function CharacterSelect() {
       </div>
 
       {/* ─── Action Bar ──────────────────────────────────────────── */}
-      <div className="flex-shrink-0 px-4 pb-3 pt-1 space-y-1.5 z-40">
+      <div className="flex-shrink-0 px-4 pt-1 space-y-1.5 z-40" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
 
         {/* VS row */}
         <AnimatePresence>
