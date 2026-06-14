@@ -79,6 +79,35 @@ export const api = {
     return data?.[0] ?? null;
   },
 
+  // ─── Multi-player room matchmaking ───────────────────────────────────
+  async findOpponents(myId: string, max: number = 3): Promise<any[]> {
+    const { data } = await supabase
+      .from('match_queue')
+      .select('*')
+      .eq('status', 'waiting')
+      .neq('player_id', myId)
+      .order('created_at', { ascending: true })
+      .limit(max);
+    return data ?? [];
+  },
+
+  async markMatchedRoom(myId: string, guestIds: string[]): Promise<void> {
+    await supabase
+      .from('match_queue')
+      .update({ status: 'matched', matched_with: guestIds.join(',') })
+      .eq('player_id', myId);
+  },
+
+  async findRoomForMe(myId: string): Promise<any | null> {
+    const { data } = await supabase
+      .from('match_queue')
+      .select('*')
+      .eq('status', 'matched')
+      .ilike('matched_with', `%${myId}%`)
+      .limit(1);
+    return data?.[0] ?? null;
+  },
+
   async submitAnswer(playerId: string, answer: string) {
     return supabase.from('match_queue').update({ webrtc_answer: answer }).eq('player_id', playerId);
   },

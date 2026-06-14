@@ -58,8 +58,7 @@ export interface FighterSyncData {
 }
 
 export interface StateSyncPayload {
-  p1: FighterSyncData;
-  p2: FighterSyncData;
+  fighters: FighterSyncData[]; // index matches playerIndex
   timer: number;
   frame: number;
 }
@@ -88,6 +87,10 @@ export interface GameLoopOptions {
   onMatchEnd: (winner: 1 | 2) => void;
   onCountdownUpdate: (countdown: number) => void;
   onPhaseUpdate: (phase: MatchState['phase']) => void;
+  /** Extra fighters for 3-4 player online matches (fighters[2] and fighters[3]) */
+  extraFighters?: FighterState[];
+  /** Which fighter index the local player controls (default 0 = P1) */
+  myPlayerIndex?: number;
 }
 
 // ─── Game Loop Class ─────────────────────────────────────────────────
@@ -99,11 +102,15 @@ export class GameLoop {
   private platforms: Platform[];
   private player1: FighterState;
   private player2: FighterState;
+  private fighters: FighterState[]; // [player1, player2, ...extraFighters]
+  private myPlayerIndex: number;
   private inputHandler: InputHandler;
   private aiController: AIController;
   private getP2Input?: GameLoopOptions['getP2Input'];
   private onLocalInput?: GameLoopOptions['onLocalInput'];
   private onStateSync?: GameLoopOptions['onStateSync'];
+  // Remote input buffers indexed by playerIndex (for multi-player)
+  private remoteInputs: Map<number, { joystick: { x: number; y: number }; attack: boolean; special: boolean; jump: boolean; shield: boolean; grab: boolean; attackPressed: boolean; specialPressed: boolean; jumpPressed: boolean; shieldPressed: boolean; grabPressed: boolean; }> = new Map();
   private localFrame = 0;
   private syncCounter = 0;
   private readonly SYNC_INTERVAL = 2; // broadcast every 2 physics frames (~33ms)
@@ -159,6 +166,8 @@ export class GameLoop {
     this.platforms = opts.platforms;
     this.player1 = opts.player1;
     this.player2 = opts.player2;
+    this.fighters = [opts.player1, opts.player2, ...(opts.extraFighters ?? [])];
+    this.myPlayerIndex = opts.myPlayerIndex ?? 0;
     this.inputHandler = opts.inputHandler;
     this.aiController = opts.aiController;
     this.getP2Input = opts.getP2Input;
@@ -326,13 +335,13 @@ export class GameLoop {
     if (this.matchState.phase === 'ko') {
       this.matchState.koFrames--;
       if (this.matchState.koFrames <= 0) {
-        // Check if match should continue or end
-        if (this.player1.stocks <= 0) {
-          this.endMatch(2);
-          return;
-        }
-        if (this.player2.stocks <= 0) {
-          this.endMatch(1);
+        // FFA: check if only one fighter has stocks left
+        const alive = this.fighters.filter(f => f.stocks > 0);
+        if (alive.length <= 1) {
+          // Winner = fighter with most stocks (or index 0 if tie)
+          const winnerIdx = this.fighters.reduce((best, f, i) =>
+            f.stocks > this.fighters[best].stocks ? i : best, 0);
+          this.endMatch(winnerIdx === 0 ? 1 : 2);
           return;
         }
         this.matchState.phase = 'active';
@@ -354,21 +363,30 @@ export class GameLoop {
     // Update moving platforms
     updateMovingPlatforms(this.platforms);
 
-    // Get inputs
-    const p1Input = this.inputHandler.getGameInput();
-    // Send P1 input over network if in online mode
+    // Get local player input
+    const localInput = this.inputHandler.getGameInput();
     if (this.onLocalInput) {
-      this.onLocalInput({ ...p1Input, frame: this.localFrame++ });
+      this.onLocalInput({ ...localInput, frame: this.localFrame++ });
     }
-    const remoteInput = this.getP2Input?.();
-    const p2Input = remoteInput ?? this.aiController.update(this.player2, this.player1, this.stage);
 
-    // Update fighters
-    this.updateFighter(this.player1, p1Input);
-    this.updateFighter(this.player2, p2Input);
+    // Update all fighters
+    for (let i = 0; i < this.fighters.length; i++) {
+      let inp: typeof localInput;
+      if (i === this.myPlayerIndex) {
+        inp = localInput;
+      } else if (i === 1 && this.myPlayerIndex === 0) {
+        // 2-player compat: P2 uses getP2Input or AI
+        const remoteInput = this.getP2Input?.();
+        inp = remoteInput ?? this.aiController.update(this.player2, this.player1, this.stage);
+      } else {
+        // Multi-player: use buffered remote input or AI
+        inp = this.remoteInputs.get(i) ?? this.aiController.update(this.fighters[i], this.fighters[this.myPlayerIndex], this.stage);
+      }
+      this.updateFighter(this.fighters[i], inp);
+    }
 
-    // Collision: hitboxes
-    this.checkHitboxCollisions();
+    // N-way hitbox collision
+    this.checkHitboxCollisionsMulti();
 
     // Check blast zones / KOs
     this.checkBlastZones();
@@ -385,16 +403,15 @@ export class GameLoop {
     // Update camera
     this.updateCamera();
 
-    // Sync React state
-    this.onDamageUpdate(1, Math.round(this.player1.damage));
-    this.onDamageUpdate(2, Math.round(this.player2.damage));
+    // Sync React state (first two players only for HUD compat)
+    this.onDamageUpdate(1, Math.round(this.fighters[0].damage));
+    this.onDamageUpdate(2, Math.round(this.fighters[1]?.damage ?? 0));
 
     // Host: broadcast authoritative state every SYNC_INTERVAL frames
     if (this.onStateSync && ++this.syncCounter >= this.SYNC_INTERVAL) {
       this.syncCounter = 0;
       this.onStateSync({
-        p1: this.extractFighterSync(this.player1),
-        p2: this.extractFighterSync(this.player2),
+        fighters: this.fighters.map(f => this.extractFighterSync(f)),
         timer: this.matchState.timer,
         frame: this.localFrame,
       });
@@ -415,14 +432,31 @@ export class GameLoop {
     };
   }
 
-  /** Client: snap to host's authoritative state.
-   *  Host's P1 = client's P2, host's P2 = client's P1. */
+  /** Client: snap to host's authoritative state. Skip own fighter to avoid rubberbanding. */
   applyRemoteState(state: StateSyncPayload): void {
-    this.snapFighter(this.player2, state.p1); // host char (host's P1) → our P2
-    this.snapFighter(this.player1, state.p2); // client char (host's P2) → our P1
+    if (state.fighters) {
+      // Multi-player array format
+      for (let i = 0; i < state.fighters.length && i < this.fighters.length; i++) {
+        if (i !== this.myPlayerIndex) {
+          this.snapFighter(this.fighters[i], state.fighters[i]);
+        }
+      }
+    } else {
+      // Legacy 2-player format (backwards compat)
+      const legacy = state as any;
+      if (legacy.p1 && legacy.p2) {
+        this.snapFighter(this.player2, legacy.p1);
+        this.snapFighter(this.player1, legacy.p2);
+      }
+    }
     if (this.matchState.phase === 'active') {
       this.matchState.timer = state.timer;
     }
+  }
+
+  /** Apply a remote player's input to their fighter slot. */
+  applyRemoteInput(playerIndex: number, input: { joystick: { x: number; y: number }; attack: boolean; special: boolean; jump: boolean; shield: boolean; grab: boolean; attackPressed: boolean; specialPressed: boolean; jumpPressed: boolean; shieldPressed: boolean; grabPressed: boolean; }): void {
+    this.remoteInputs.set(playerIndex, input);
   }
 
   private snapFighter(f: FighterState, s: FighterSyncData): void {
@@ -490,24 +524,24 @@ export class GameLoop {
   // ── Hitbox Collisions ──────────────────────────────────────────────
 
   private checkHitboxCollisions(): void {
-    // P1 attacks P2
-    if (this.player1.hitboxes.length > 0) {
-      const result = checkHitboxCollision(this.player1, this.player2);
-      if (result.hit) {
-        const hb = this.player1.hitboxes[result.hitboxIndex];
-        this.applyHit(this.player2, hb, this.player1.direction, 'player2');
-        // Remove hitbox after it connects (one-hit per active frame)
-        this.player1.hitboxes = this.player1.hitboxes.filter((_, i) => i !== result.hitboxIndex);
-      }
-    }
+    this.checkHitboxCollisionsMulti();
+  }
 
-    // P2 attacks P1
-    if (this.player2.hitboxes.length > 0) {
-      const result = checkHitboxCollision(this.player2, this.player1);
-      if (result.hit) {
-        const hb = this.player2.hitboxes[result.hitboxIndex];
-        this.applyHit(this.player1, hb, this.player2.direction, 'player1');
-        this.player2.hitboxes = this.player2.hitboxes.filter((_, i) => i !== result.hitboxIndex);
+  private checkHitboxCollisionsMulti(): void {
+    for (let a = 0; a < this.fighters.length; a++) {
+      const attacker = this.fighters[a];
+      if (attacker.hitboxes.length === 0) continue;
+      for (let b = 0; b < this.fighters.length; b++) {
+        if (a === b) continue;
+        const target = this.fighters[b];
+        const result = checkHitboxCollision(attacker, target);
+        if (result.hit) {
+          const hb = attacker.hitboxes[result.hitboxIndex];
+          const targetName: 'player1' | 'player2' = b === this.myPlayerIndex ? 'player1' : 'player2';
+          this.applyHit(target, hb, attacker.direction, targetName);
+          attacker.hitboxes = attacker.hitboxes.filter((_, i) => i !== result.hitboxIndex);
+          break; // one hit per frame per attacker
+        }
       }
     }
   }
@@ -588,24 +622,18 @@ export class GameLoop {
       },
     } : this.stage;
 
-    // Player 1
-    if (checkBlastZone(this.player1, effectiveStage) && !this.player1.isDead) {
-      koFighter(this.player1);
-      this.onStockUpdate(1, this.player1.stocks);
-      this.spawnKOParticles(this.player1);
-      triggerShake(this.camera, 10, 20);
-      this.matchState.phase = 'ko';
-      this.matchState.koFrames = 90;
-    }
-
-    // Player 2
-    if (checkBlastZone(this.player2, effectiveStage) && !this.player2.isDead) {
-      koFighter(this.player2);
-      this.onStockUpdate(2, this.player2.stocks);
-      this.spawnKOParticles(this.player2);
-      triggerShake(this.camera, 10, 20);
-      this.matchState.phase = 'ko';
-      this.matchState.koFrames = 90;
+    for (let i = 0; i < this.fighters.length; i++) {
+      const f = this.fighters[i];
+      if (checkBlastZone(f, effectiveStage) && !f.isDead) {
+        koFighter(f);
+        // HUD only tracks players 1 & 2 (indices 0 & 1)
+        if (i === 0) this.onStockUpdate(1, f.stocks);
+        else if (i === 1) this.onStockUpdate(2, f.stocks);
+        this.spawnKOParticles(f);
+        triggerShake(this.camera, 10, 20);
+        this.matchState.phase = 'ko';
+        this.matchState.koFrames = 90;
+      }
     }
   }
 
@@ -631,18 +659,31 @@ export class GameLoop {
   // ── Time Up ────────────────────────────────────────────────────────
 
   private handleTimeUp(): void {
-    if (this.player1.stocks > this.player2.stocks) {
-      this.endMatch(1);
-    } else if (this.player2.stocks > this.player1.stocks) {
-      this.endMatch(2);
-    } else {
+    // Winner = fighter with most stocks; tie-break by least damage
+    const best = this.fighters.reduce((best, f, i) => {
+      const bF = this.fighters[best];
+      if (f.stocks > bF.stocks) return i;
+      if (f.stocks === bF.stocks && f.damage < bF.damage) return i;
+      return best;
+    }, 0);
+    const second = this.fighters.reduce((b2, f, i) => {
+      if (i === best) return b2;
+      const b2F = this.fighters[b2];
+      if (b2F < 0 || f.stocks > b2F.stocks) return i;
+      return b2;
+    }, best === 0 ? 1 : 0);
+
+    if (this.fighters[best].stocks === this.fighters[second].stocks &&
+        Math.abs(this.fighters[best].damage - this.fighters[second].damage) < 5) {
       // Sudden death
       this.matchState.suddenDeath = true;
-      this.player1.damage = 300;
-      this.player2.damage = 300;
-      this.onDamageUpdate(1, 300);
-      this.onDamageUpdate(2, 300);
-      // Shrink blast zones handled in stage
+      this.fighters.forEach((f, i) => {
+        f.damage = 300;
+        if (i === 0) this.onDamageUpdate(1, 300);
+        else if (i === 1) this.onDamageUpdate(2, 300);
+      });
+    } else {
+      this.endMatch(best === 0 ? 1 : 2);
     }
   }
 
@@ -660,10 +701,14 @@ export class GameLoop {
 
   private updateCamera(): void {
     const dpr = window.devicePixelRatio || 1;
+    // For 3-4 player: compute centroid of alive fighters and use spread as zoom hint
+    const alive = this.fighters.filter(f => !f.isDead);
+    const p1 = alive[0]?.position ?? this.fighters[0].position;
+    const p2 = alive[1]?.position ?? this.fighters[this.fighters.length - 1].position;
     updateCamera(
       this.camera,
-      this.player1.isDead ? this.player2.position : this.player1.position,
-      this.player2.isDead ? this.player1.position : this.player2.position,
+      p1,
+      p2,
       this.canvas.width / dpr,
       this.canvas.height / dpr,
       this.stage
@@ -718,14 +763,13 @@ export class GameLoop {
     renderPlatforms(ctx, this.platforms, offsetX, offsetY, scale);
 
     // Respawn effects (draw under fighters)
-    renderRespawnEffects(ctx, [this.player1, this.player2], offsetX, offsetY, scale);
+    renderRespawnEffects(ctx, this.fighters, offsetX, offsetY, scale);
 
-    // Fighters
-    if (!this.player1.isDead || this.player1.state !== 'dead') {
-      renderFighter(ctx, this.player1, offsetX, offsetY, scale);
-    }
-    if (!this.player2.isDead || this.player2.state !== 'dead') {
-      renderFighter(ctx, this.player2, offsetX, offsetY, scale);
+    // Fighters (all of them)
+    for (const fighter of this.fighters) {
+      if (!fighter.isDead || fighter.state !== 'dead') {
+        renderFighter(ctx, fighter, offsetX, offsetY, scale);
+      }
     }
 
     // Particles

@@ -180,6 +180,11 @@ interface GameState {
   setMatchOpponent: (opponent: Profile | null) => void;
   matchChannel: RealtimeChannel | null;
   setMatchChannel: (ch: RealtimeChannel | null) => void;
+  // Multi-player room
+  roomPlayers: Profile[];
+  setRoomPlayers: (players: Profile[]) => void;
+  myPlayerIndex: number;
+  setMyPlayerIndex: (index: number) => void;
 
   // Actions
   selectCharacter: (player: 1 | 2, character: Character) => void;
@@ -237,6 +242,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   setMatchOpponent: (opponent) => set({ matchOpponent: opponent }),
   matchChannel: null,
   setMatchChannel: (ch) => set({ matchChannel: ch }),
+  roomPlayers: [],
+  setRoomPlayers: (players) => set({ roomPlayers: players }),
+  myPlayerIndex: 0,
+  setMyPlayerIndex: (index) => set({ myPlayerIndex: index }),
 
   // Actions
   setGameState: (state) => set({ gameState: state }),
@@ -354,6 +363,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       isHost: false,
       matchOpponent: null,
       matchChannel: null,
+      roomPlayers: [],
+      myPlayerIndex: 0,
     });
   },
 
