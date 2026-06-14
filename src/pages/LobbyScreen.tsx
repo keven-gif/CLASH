@@ -25,11 +25,12 @@ interface LobbyPlayer {
 export default function LobbyScreen() {
   const navigate = useNavigate();
   const { user, signOut, loading: authLoading } = useAuth();
-  const { selectCharacter, setOnlineMode, setIsHost, setMatchOpponent, setMatchChannel, setUser, user: storeUser } = useGameStore();
+  const { setOnlineMode, setIsHost, setMatchOpponent, setMatchChannel, setUser, user: storeUser } = useGameStore();
 
   // MatchmakingManager & WebSocket
   const mmRef = useRef<MatchmakingManager | null>(null);
   const matchFoundRef = useRef(false);
+  const opponentReadyRef = useRef(false);
   const [mmState, setMmState] = useState<MatchmakingState>('idle');
 
   // UI State
@@ -111,27 +112,48 @@ export default function LobbyScreen() {
       // Save auth user to game store so CharacterSelect can access it
       if (user) setUser(user);
 
-      // Countdown 3-2-1 before navigating to game
-      let c = 3;
-      setCountdown(c);
-      cdTimerRef.current = setInterval(() => {
-        c--;
-        setCountdown(c);
-        if (c <= 0) {
-          if (cdTimerRef.current) clearInterval(cdTimerRef.current);
-          const chosenChar = CHARACTERS.find(ch => ch.id === selectedCharacterRef.current) ?? CHARACTERS[0];
-          selectCharacter(1, chosenChar);
-          setOnlineMode(true);
-          setIsHost(match.isHost);
-          setMatchOpponent(match.opponent);
-          // Create the shared realtime channel now so it's ready for CharacterSelect
-          const myId = storeUser?.id ?? user!.id;
-          const matchId = [myId, match.opponent.id].sort().join('_');
-          setMatchChannel(new RealtimeChannel(matchId, myId));
-          matchFoundRef.current = true;
-          navigate('/select');
+      // Create the shared realtime channel NOW so both players can use it to sync ready state
+      const myId = storeUser?.id ?? user!.id;
+      const matchId = [myId, match.opponent.id].sort().join('_');
+      const ch = new RealtimeChannel(matchId, myId);
+      setMatchChannel(ch);
+
+      // Listen for opponent's ready signal
+      ch.onEvent('player_ready', () => {
+        setLobbyPlayers(prev => prev.map(p =>
+          p.playerId !== myId ? { ...p, ready: true } : p
+        ));
+        opponentReadyRef.current = true;
+
+        // If we're already ready AND we're host, send go signal now
+        if (match.isHost) {
+          setIsReady(alreadyReady => {
+            if (alreadyReady && !matchFoundRef.current) {
+              setTimeout(() => {
+                ch.sendEvent('lobby_go', {});
+                if (!matchFoundRef.current) {
+                  matchFoundRef.current = true;
+                  setOnlineMode(true);
+                  setIsHost(true);
+                  setMatchOpponent(match.opponent);
+                  navigate('/select');
+                }
+              }, 300);
+            }
+            return alreadyReady;
+          });
         }
-      }, 1000);
+      });
+
+      // Listen for host's "go to character select" signal
+      ch.onEvent('lobby_go', () => {
+        if (matchFoundRef.current) return;
+        matchFoundRef.current = true;
+        setOnlineMode(true);
+        setIsHost(match.isHost);
+        setMatchOpponent(match.opponent);
+        navigate('/select');
+      });
     });
 
     try { await mm.startSearch(user); }
@@ -160,8 +182,32 @@ export default function LobbyScreen() {
   }, []);
 
   const handleReady = useCallback(() => {
-    setIsReady(r => !r);
-  }, []);
+    const ch = useGameStore.getState().matchChannel;
+    if (!ch || !opponent) return;
+
+    const nowReady = !isReady;
+    setIsReady(nowReady);
+
+    if (nowReady) {
+      // Broadcast our ready state to opponent
+      ch.sendEvent('player_ready', {});
+
+      // If opponent is already ready too, host fires the go signal
+      if (opponentReadyRef.current && opponent.isHost) {
+        // Small delay to let the channel settle
+        setTimeout(() => {
+          ch.sendEvent('lobby_go', {});
+          if (!matchFoundRef.current) {
+            matchFoundRef.current = true;
+            setOnlineMode(true);
+            setIsHost(true);
+            setMatchOpponent(opponent.opponent);
+            navigate('/select');
+          }
+        }, 300);
+      }
+    }
+  }, [isReady, opponent, navigate, setOnlineMode, setIsHost, setMatchOpponent]);
 
   const handleSendChat = useCallback(() => {
     if (chatInput.trim() && user) {
