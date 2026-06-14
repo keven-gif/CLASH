@@ -239,9 +239,9 @@ export default function LobbyScreen() {
   if (!user) return null;
 
   return (
-    <div className="w-screen h-screen bg-void overflow-hidden select-none flex flex-col">
+    <div className="w-screen bg-void overflow-hidden select-none flex flex-col" style={{ height: '100dvh' }}>
       {/* Header */}
-      <header className="h-[10vh] flex-shrink-0 flex items-center px-4 border-b border-border-subtle relative z-10">
+      <header className="h-14 flex-shrink-0 flex items-center px-4 border-b border-border-subtle relative z-10">
         <button onClick={() => { handleLeave(); navigate('/'); }} className="w-10 h-10 flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors">
           <ArrowLeft size={22} />
         </button>
@@ -448,7 +448,7 @@ export default function LobbyScreen() {
 
               {/* ── MATCH FOUND: compact mobile layout ── */}
               {opponent && (
-                <div className="flex-1 flex flex-col min-h-0 px-4 pb-2">
+                <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-2 flex flex-col">
 
                   {/* VS row */}
                   <motion.div

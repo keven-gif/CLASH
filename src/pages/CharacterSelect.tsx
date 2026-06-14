@@ -6,8 +6,6 @@ import { useGameStore, CHARACTERS, STAGES } from '@/store/gameStore';
 import type { Character } from '@/store/gameStore';
 import { audioManager } from '@/audio/AudioManager';
 
-// ─── Stat Bar ────────────────────────────────────────────────────────
-
 function StatBar({ label, value, maxValue, color, icon }: {
   label: string; value: number; maxValue: number; color: string; icon: React.ReactNode;
 }) {
@@ -29,12 +27,9 @@ function StatBar({ label, value, maxValue, color, icon }: {
   );
 }
 
-// ─── Main Component ──────────────────────────────────────────────────
-
 export default function CharacterSelect() {
   const navigate = useNavigate();
 
-  // Individual selectors — prevent effect restarts on unrelated store updates
   const player1Character = useGameStore(s => s.player1Character);
   const player2Character = useGameStore(s => s.player2Character);
   const selectCharacter  = useGameStore(s => s.selectCharacter);
@@ -45,39 +40,25 @@ export default function CharacterSelect() {
 
   const [activeIndex, setActiveIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
+  const navigatedRef = useRef(false);
 
-  // Online-mode state
   const [myReady, setMyReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
   const [opponentCharId, setOpponentCharId] = useState<string | null>(null);
-  const [statusMsg, setStatusMsg] = useState('');
   const [waitingForChannel, setWaitingForChannel] = useState(false);
 
-  const navigatedRef = useRef(false);
+  useEffect(() => { audioManager.playMusic('music-title'); }, []);
 
-  useEffect(() => {
-    audioManager.playMusic('music-title');
-  }, []);
-
-  // ── Online: use RealtimeChannel broadcast for char sync ────────────
   useEffect(() => {
     if (!onlineMode || !matchChannel) return;
 
-    // Listen for opponent's character selection
     matchChannel.onEvent('char_select', (data: { charId: string }) => {
-      if (data?.charId) {
-        setOpponentCharId(data.charId);
-        setOpponentReady(true);
-      }
+      if (data?.charId) { setOpponentCharId(data.charId); setOpponentReady(true); }
     });
 
-    // Listen for host's start signal
     matchChannel.onEvent('match_start', (data: { p1CharId: string; p2CharId: string; stageId: string }) => {
       if (navigatedRef.current) return;
       navigatedRef.current = true;
-
-      // CLIENT: host sent p1=host char, p2=client char.
-      // Swap so local player is always P1 — GameLoop maps local-input→P1, remote-input→P2.
       const myChar  = CHARACTERS.find(c => c.id === data.p2CharId);
       const oppChar = CHARACTERS.find(c => c.id === data.p1CharId);
       if (myChar)  selectCharacter(1, myChar);
@@ -87,23 +68,17 @@ export default function CharacterSelect() {
       navigate('/play');
     });
 
-    // Re-broadcast our selection if we already picked (handles late channel subscription)
     if (player1Character) {
       matchChannel.sendEvent('char_select', { charId: player1Character.id });
     }
-  // matchChannel ref is stable after LobbyScreen sets it once
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onlineMode, matchChannel]);
 
-  // ── Select a character ────────────────────────────────────────────
   const handleSelect = useCallback((char: Character) => {
     if (myReady) return;
-
     if (onlineMode) {
       if (!matchChannel) {
-        // Channel not ready yet — wait
         setWaitingForChannel(true);
-        setStatusMsg('Connecting...');
         const wait = setInterval(() => {
           const ch = useGameStore.getState().matchChannel;
           if (ch) {
@@ -111,7 +86,6 @@ export default function CharacterSelect() {
             setWaitingForChannel(false);
             selectCharacter(1, char);
             setMyReady(true);
-            setStatusMsg('Waiting for opponent...');
             ch.sendEvent('char_select', { charId: char.id });
           }
         }, 200);
@@ -119,7 +93,6 @@ export default function CharacterSelect() {
       }
       selectCharacter(1, char);
       setMyReady(true);
-      setStatusMsg('Waiting for opponent...');
       matchChannel.sendEvent('char_select', { charId: char.id });
     } else {
       selectCharacter(1, char);
@@ -128,30 +101,17 @@ export default function CharacterSelect() {
     }
   }, [onlineMode, myReady, matchChannel, selectCharacter]);
 
-  // ─── Host starts the match ────────────────────────────────────────
   const handleHostStart = useCallback(() => {
-    if (!isHost || !player1Character || !opponentCharId) return;
-    if (navigatedRef.current) return;
-    if (!matchChannel) return;
-
+    if (!isHost || !player1Character || !opponentCharId || navigatedRef.current || !matchChannel) return;
     navigatedRef.current = true;
     const stageId = 'battlefield';
-
-    matchChannel.sendEvent('match_start', {
-      p1CharId: player1Character.id,
-      p2CharId: opponentCharId,
-      stageId,
-    });
-
-    // Host: P1 = own char, P2 = client char
+    matchChannel.sendEvent('match_start', { p1CharId: player1Character.id, p2CharId: opponentCharId, stageId });
     const p2 = CHARACTERS.find(c => c.id === opponentCharId);
     if (p2) selectCharacter(2, p2);
-    const stage = STAGES.find(s => s.id === stageId) ?? STAGES[0];
-    useGameStore.getState().selectStage(stage);
+    useGameStore.getState().selectStage(STAGES.find(s => s.id === stageId) ?? STAGES[0]);
     navigate('/play');
   }, [isHost, player1Character, opponentCharId, matchChannel, selectCharacter, navigate]);
 
-  // ─── Offline fight ────────────────────────────────────────────────
   const handleFight = useCallback(() => {
     if (player1Character) navigate('/stage');
   }, [navigate, player1Character]);
@@ -168,16 +128,33 @@ export default function CharacterSelect() {
   };
 
   const char = CHARACTERS[activeIndex];
-  const isLocalReady  = onlineMode ? myReady : player1Character !== null;
-  const bothReady     = onlineMode
-    ? (myReady && opponentReady)
-    : (player1Character !== null && player2Character !== null);
-  const opponentChar  = opponentCharId ? CHARACTERS.find(c => c.id === opponentCharId) : null;
+  const isSelected   = !onlineMode ? player1Character !== null : myReady;
+  const bothReady    = !onlineMode
+    ? (player1Character !== null && player2Character !== null)
+    : (myReady && opponentReady);
+  const opponentChar = opponentCharId ? CHARACTERS.find(c => c.id === opponentCharId) : null;
+
+  // ── Derive the single primary button label/action ─────────────────
+  const getButtonState = () => {
+    if (waitingForChannel) return 'connecting';
+    if (onlineMode) {
+      if (!myReady) return 'select';
+      if (!opponentReady) return 'waiting';
+      if (isHost) return 'start';
+      return 'host-starting';
+    }
+    if (!player1Character) return 'select';
+    if (!player2Character) return 'select'; // shouldn't happen offline
+    return 'fight';
+  };
+  const btnState = getButtonState();
 
   return (
-    <div className="relative w-screen bg-void overflow-hidden select-none flex flex-col" style={{ height: '100dvh' }}>
-
-      {/* ─── Header ──────────────────────────────────────────────── */}
+    <div
+      className="relative w-screen bg-void overflow-hidden select-none flex flex-col"
+      style={{ height: '100dvh' }}
+    >
+      {/* ── Header ────────────────────────────────────────────────── */}
       <div className="h-14 flex-shrink-0 flex items-center px-4 relative z-50">
         {!onlineMode && (
           <button
@@ -200,19 +177,16 @@ export default function CharacterSelect() {
         )}
       </div>
 
-      {/* ─── Carousel ────────────────────────────────────────────── */}
+      {/* ── Carousel (fills all space between header and action bar) ── */}
       <div
-        className="flex-1 min-h-0 relative flex flex-col overflow-hidden"
+        className="flex-1 min-h-0 flex flex-col px-4 gap-2 pt-1 pb-2"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
-        {/* Character card — fixed height so buttons are always visible */}
-        <div className="relative mx-4 rounded-2xl overflow-hidden border-2 transition-all duration-300"
-          style={{
-            height: 'min(42vh, 260px)',
-            borderColor: char.accentColor + '99',
-            boxShadow: `0 0 32px ${char.accentColor}30`,
-          }}
+        {/* Card — flex-1 so it fills remaining height, never overflows */}
+        <div
+          className="flex-1 min-h-0 relative rounded-2xl overflow-hidden border-2 transition-all duration-300"
+          style={{ borderColor: char.accentColor + '99', boxShadow: `0 0 32px ${char.accentColor}30` }}
         >
           <AnimatePresence mode="wait">
             <motion.div
@@ -225,10 +199,10 @@ export default function CharacterSelect() {
             >
               <img src={char.image} alt={char.name} className="w-full h-full object-cover object-top" draggable={false} />
               <div className="absolute inset-0" style={{
-                background: 'linear-gradient(to bottom, transparent 30%, rgba(5,5,7,0.6) 58%, rgba(5,5,7,0.96) 100%)',
+                background: 'linear-gradient(to bottom, transparent 30%, rgba(5,5,7,0.6) 55%, rgba(5,5,7,0.96) 100%)',
               }} />
 
-              <div className="absolute bottom-0 left-0 right-0 px-3 pt-2 pb-2 space-y-1.5">
+              <div className="absolute bottom-0 left-0 right-0 px-3 pb-3 space-y-1.5">
                 <div className="flex items-center gap-2">
                   <h2 className="font-orbitron font-black text-[22px] text-text-primary leading-none">
                     {char.name.toUpperCase()}
@@ -239,13 +213,12 @@ export default function CharacterSelect() {
                   >
                     {char.archetype.toUpperCase()}
                   </span>
-                  {isLocalReady && player1Character?.id === char.id && (
+                  {isSelected && player1Character?.id === char.id && (
                     <span className="font-rajdhani font-bold text-[10px] tracking-widest ml-auto" style={{ color: char.accentColor }}>
                       ✓ SELECTED
                     </span>
                   )}
                 </div>
-
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                   <StatBar label="SPD" value={char.stats.speed}   maxValue={5} color={char.accentColor} icon={<Zap size={11}/>} />
                   <StatBar label="PWR" value={char.stats.power}   maxValue={5} color={char.accentColor} icon={<Sword size={11}/>} />
@@ -256,26 +229,28 @@ export default function CharacterSelect() {
             </motion.div>
           </AnimatePresence>
 
-          <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center z-20"
+          <button onClick={prev}
+            className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center z-20"
             style={{ backgroundColor: 'rgba(10,10,15,0.7)', border: '1px solid rgba(255,255,255,0.1)' }}>
             <ChevronLeft size={18} className="text-white" />
           </button>
-          <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center z-20"
+          <button onClick={next}
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center z-20"
             style={{ backgroundColor: 'rgba(10,10,15,0.7)', border: '1px solid rgba(255,255,255,0.1)' }}>
             <ChevronRight size={18} className="text-white" />
           </button>
         </div>
 
         {/* Thumbnails */}
-        <div className="flex-shrink-0 flex items-center justify-center gap-2 py-2">
+        <div className="flex-shrink-0 flex items-center justify-center gap-2">
           {CHARACTERS.map((c, i) => (
             <button
               key={c.id}
               onClick={() => !myReady && setActiveIndex(i)}
               className="relative rounded-lg overflow-hidden transition-all duration-200 flex-shrink-0"
               style={{
-                width: i === activeIndex ? 42 : 32,
-                height: i === activeIndex ? 42 : 32,
+                width: i === activeIndex ? 40 : 30,
+                height: i === activeIndex ? 40 : 30,
                 border: `2px solid ${i === activeIndex ? c.accentColor : '#2A2A3A'}`,
                 boxShadow: i === activeIndex ? `0 0 10px ${c.accentColor}60` : 'none',
                 opacity: myReady && player1Character?.id !== c.id && opponentCharId !== c.id ? 0.4 : 1,
@@ -291,105 +266,95 @@ export default function CharacterSelect() {
             </button>
           ))}
         </div>
-      </div>
 
-      {/* ─── Action Bar ──────────────────────────────────────────── */}
-      <div className="flex-shrink-0 px-4 pt-1 space-y-1.5 z-40" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
-
-        {/* VS row */}
-        <AnimatePresence>
+        {/* VS preview strip — fixed h-8 so it never shifts the layout */}
+        <div className="flex-shrink-0 h-8 flex items-center justify-center gap-2">
           {bothReady && (
             <motion.div
-              className="flex items-center justify-center gap-3"
-              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+              className="flex items-center gap-2"
+              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
             >
               {player1Character && (
-                <img src={player1Character.image} alt="" className="w-8 h-8 rounded-lg object-cover object-top border-2" style={{ borderColor: player1Character.accentColor }} />
+                <img src={player1Character.image} alt="" className="w-6 h-6 rounded object-cover object-top border" style={{ borderColor: player1Character.accentColor }} />
               )}
               <span className="font-rajdhani font-bold text-[11px]" style={{ color: player1Character?.accentColor }}>
                 {onlineMode ? 'YOU' : player1Character?.name}
               </span>
-              <span className="font-orbitron font-black text-[14px] text-text-secondary">VS</span>
+              <span className="font-orbitron font-black text-[12px] text-text-secondary">VS</span>
               <span className="font-rajdhani font-bold text-[11px]" style={{ color: onlineMode ? '#E81D2D' : player2Character?.accentColor }}>
                 {onlineMode ? (matchOpponent?.username ?? 'Opponent') : player2Character?.name}
               </span>
               {onlineMode && opponentChar ? (
-                <img src={opponentChar.image} alt="" className="w-8 h-8 rounded-lg object-cover object-top border-2 border-[#E81D2D]" />
+                <img src={opponentChar.image} alt="" className="w-6 h-6 rounded object-cover object-top border border-[#E81D2D]" />
               ) : player2Character ? (
-                <img src={player2Character.image} alt="" className="w-8 h-8 rounded-lg object-cover object-top border-2" style={{ borderColor: player2Character.accentColor }} />
+                <img src={player2Character.image} alt="" className="w-6 h-6 rounded object-cover object-top border" style={{ borderColor: player2Character.accentColor }} />
               ) : null}
             </motion.div>
           )}
-        </AnimatePresence>
-
-        {/* Buttons */}
-        <div className="flex gap-3">
-          {/* Select button */}
-          <motion.button
-            onClick={() => !myReady && !waitingForChannel && handleSelect(char)}
-            disabled={myReady || waitingForChannel}
-            className="flex-1 h-12 rounded-xl font-rajdhani font-bold text-[16px] uppercase tracking-wider border transition-all disabled:opacity-60 flex items-center justify-center gap-2"
-            style={{
-              backgroundColor: isLocalReady && player1Character?.id === char.id ? char.accentColor + '20' : 'transparent',
-              borderColor: char.accentColor + '60',
-              color: char.accentColor,
-            }}
-            whileTap={{ scale: (myReady || waitingForChannel) ? 1 : 0.96 }}
-          >
-            {waitingForChannel ? (
-              <><Loader size={14} className="animate-spin" /> CONNECTING...</>
-            ) : isLocalReady && player1Character?.id === char.id ? (
-              '✓ SELECTED'
-            ) : (
-              `SELECT ${char.name.toUpperCase()}`
-            )}
-          </motion.button>
-
-          {/* Online status chips */}
-          {onlineMode && myReady && !opponentReady && (
-            <div className="h-12 px-4 rounded-xl flex items-center gap-2 bg-bg-elevated border border-border-subtle">
-              <Loader size={14} className="text-text-muted animate-spin" />
-              <span className="font-rajdhani text-[13px] text-text-muted">Waiting...</span>
-            </div>
-          )}
-
-          {onlineMode && bothReady && isHost && (
-            <motion.button
-              onClick={handleHostStart}
-              className="h-12 px-6 rounded-xl font-rajdhani font-bold text-[18px] uppercase tracking-wider"
-              style={{ backgroundColor: '#00E5D4', color: '#0A0A0F', boxShadow: '0 4px 20px rgba(0,229,212,0.35)' }}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              START →
-            </motion.button>
-          )}
-
-          {onlineMode && bothReady && !isHost && (
-            <div className="h-12 px-4 rounded-xl flex items-center gap-2 bg-accent-cyan/10 border border-accent-cyan/30">
-              <Loader size={14} className="text-accent-cyan animate-spin" />
-              <span className="font-rajdhani text-[13px] text-accent-cyan">Host starting...</span>
-            </div>
-          )}
-
-          {/* Offline fight button */}
-          {!onlineMode && player1Character && player2Character && (
-            <motion.button
-              onClick={handleFight}
-              className="h-12 px-6 rounded-xl font-rajdhani font-bold text-[18px] uppercase tracking-wider"
-              style={{ backgroundColor: '#00E5D4', color: '#0A0A0F', boxShadow: '0 4px 20px rgba(0,229,212,0.35)' }}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              FIGHT →
-            </motion.button>
-          )}
         </div>
+      </div>
 
-        {statusMsg && (
-          <p className="text-center font-rajdhani text-[12px] text-text-muted">{statusMsg}</p>
+      {/* ── Action Bar — single button row, always at bottom ────────── */}
+      <div
+        className="flex-shrink-0 px-4 pt-2 z-40"
+        style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
+      >
+        {btnState === 'select' && (
+          <motion.button
+            onClick={() => handleSelect(char)}
+            className="w-full h-14 rounded-2xl font-rajdhani font-bold text-[18px] uppercase tracking-wider border-2 flex items-center justify-center"
+            style={{ borderColor: char.accentColor, color: char.accentColor }}
+            whileTap={{ scale: 0.97 }}
+          >
+            SELECT {char.name.toUpperCase()}
+          </motion.button>
+        )}
+
+        {btnState === 'connecting' && (
+          <div className="w-full h-14 rounded-2xl border-2 border-border-subtle flex items-center justify-center gap-2 opacity-60">
+            <Loader size={16} className="animate-spin text-text-muted" />
+            <span className="font-rajdhani font-bold text-[16px] text-text-muted">CONNECTING...</span>
+          </div>
+        )}
+
+        {btnState === 'waiting' && (
+          <div className="w-full h-14 rounded-2xl border-2 border-accent-cyan/30 bg-accent-cyan/10 flex items-center justify-center gap-2">
+            <Loader size={16} className="animate-spin text-accent-cyan" />
+            <span className="font-rajdhani font-bold text-[16px] text-accent-cyan">WAITING FOR OPPONENT...</span>
+          </div>
+        )}
+
+        {btnState === 'start' && (
+          <motion.button
+            onClick={handleHostStart}
+            className="w-full h-14 rounded-2xl font-rajdhani font-bold text-[18px] uppercase tracking-wider"
+            style={{ backgroundColor: '#00E5D4', color: '#0A0A0F', boxShadow: '0 4px 20px rgba(0,229,212,0.35)' }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            whileTap={{ scale: 0.97 }}
+          >
+            START MATCH →
+          </motion.button>
+        )}
+
+        {btnState === 'host-starting' && (
+          <div className="w-full h-14 rounded-2xl border-2 border-accent-cyan/30 bg-accent-cyan/10 flex items-center justify-center gap-2">
+            <Loader size={16} className="animate-spin text-accent-cyan" />
+            <span className="font-rajdhani font-bold text-[16px] text-accent-cyan">HOST IS STARTING...</span>
+          </div>
+        )}
+
+        {btnState === 'fight' && (
+          <motion.button
+            onClick={handleFight}
+            className="w-full h-14 rounded-2xl font-rajdhani font-bold text-[18px] uppercase tracking-wider"
+            style={{ backgroundColor: '#00E5D4', color: '#0A0A0F', boxShadow: '0 4px 20px rgba(0,229,212,0.35)' }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            whileTap={{ scale: 0.97 }}
+          >
+            FIGHT →
+          </motion.button>
         )}
       </div>
     </div>
