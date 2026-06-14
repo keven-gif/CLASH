@@ -18,7 +18,7 @@ type Tab = 'play' | 'rooms' | 'leaderboard' | 'settings';
 export default function LobbyScreen() {
   const navigate = useNavigate();
   const { user, signOut, loading: authLoading } = useAuth();
-  const { setOnlineMode, setIsHost, setMatchOpponent, setMatchChannel, setUser, user: storeUser } = useGameStore();
+  const { setOnlineMode, setIsHost, setMatchOpponent, setMatchChannel, setUser, setRoomPlayers, setMyPlayerIndex, user: storeUser } = useGameStore();
 
   // MatchmakingManager & WebSocket
   const mmRef = useRef<MatchmakingManager | null>(null);
@@ -34,7 +34,9 @@ export default function LobbyScreen() {
   const [selectedCharacter, setSelectedCharacter] = useState('assassin');
   useEffect(() => { selectedCharacterRef.current = selectedCharacter; }, [selectedCharacter]);
   const [isReady, setIsReady] = useState(false);
-  const [opponentReady, setOpponentReady] = useState(false); // tracked separately to avoid effect overwrite
+  const [opponentReady, setOpponentReady] = useState(false); // compat for 2-player
+  const [readySlots, setReadySlots] = useState<Set<number>>(new Set()); // multi-player ready tracking
+  const [totalSlots, setTotalSlots] = useState(2); // total players in room
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -69,47 +71,65 @@ export default function LobbyScreen() {
     mm.onMatchFound((match: MatchFound) => {
       setOpponent(match);
       if (timerRef.current) clearInterval(timerRef.current);
-      // Save auth user to game store so CharacterSelect can access it
       if (user) setUser(user);
 
-      // Create the shared realtime channel NOW so both players can use it to sync ready state
       const myId = storeUser?.id ?? user!.id;
-      const matchId = [myId, match.opponent.id].sort().join('_');
-      const ch = new RealtimeChannel(matchId, myId);
+      const numPlayers = match.opponents.length + 1;
+      setTotalSlots(numPlayers);
+
+      // Build room player list (index 0 = host)
+      const allPlayers = match.isHost
+        ? [user as any, ...match.opponents]
+        : [...match.opponents.slice(0, match.myPlayerIndex), user as any, ...match.opponents.slice(match.myPlayerIndex)];
+      setRoomPlayers(allPlayers);
+      setMyPlayerIndex(match.myPlayerIndex);
+
+      // Channel name is always the host's player_id
+      const ch = new RealtimeChannel(match.roomId, myId);
       setMatchChannel(ch);
 
-      // Listen for opponent's ready signal
-      ch.onEvent('player_ready', () => {
-        setOpponentReady(true);
+      // Listen for any player's ready signal
+      ch.onEvent('player_ready', (data: { playerIndex: number }) => {
+        const idx = data?.playerIndex ?? 1;
+        setOpponentReady(true); // compat
         opponentReadyRef.current = true;
-
-        // If we're already ready AND we're host, send go signal now
-        if (match.isHost) {
-          setIsReady(alreadyReady => {
-            if (alreadyReady && !matchFoundRef.current) {
-              setTimeout(() => {
-                ch.sendEvent('lobby_go', {});
-                if (!matchFoundRef.current) {
-                  matchFoundRef.current = true;
-                  setOnlineMode(true);
-                  setIsHost(true);
-                  setMatchOpponent(match.opponent);
-                  navigate('/select');
-                }
-              }, 300);
-            }
-            return alreadyReady;
-          });
-        }
+        setReadySlots(prev => {
+          const next = new Set(prev);
+          next.add(idx);
+          // Host fires go when all present players are ready (min 2 total)
+          if (match.isHost) {
+            setIsReady(alreadyReady => {
+              const myIdx = match.myPlayerIndex;
+              const allReady = alreadyReady && next.size >= numPlayers - 1;
+              if (allReady && !matchFoundRef.current) {
+                setTimeout(() => {
+                  ch.sendEvent('lobby_go', {});
+                  if (!matchFoundRef.current) {
+                    matchFoundRef.current = true;
+                    setOnlineMode(true);
+                    setIsHost(true);
+                    setMatchOpponent(match.opponent);
+                    setRoomPlayers(allPlayers);
+                    setMyPlayerIndex(myIdx);
+                    navigate('/select');
+                  }
+                }, 300);
+              }
+              return alreadyReady;
+            });
+          }
+          return next;
+        });
       });
 
-      // Listen for host's "go to character select" signal
       ch.onEvent('lobby_go', () => {
         if (matchFoundRef.current) return;
         matchFoundRef.current = true;
         setOnlineMode(true);
         setIsHost(match.isHost);
         setMatchOpponent(match.opponent);
+        setRoomPlayers(allPlayers);
+        setMyPlayerIndex(match.myPlayerIndex);
         navigate('/select');
       });
     });
@@ -125,6 +145,7 @@ export default function LobbyScreen() {
     setOpponent(null);
     setIsReady(false);
     setOpponentReady(false);
+    setReadySlots(new Set());
     opponentReadyRef.current = false;
     setScreen('menu');
   }, []);
@@ -148,8 +169,8 @@ export default function LobbyScreen() {
     setIsReady(nowReady);
 
     if (nowReady) {
-      // Broadcast our ready state to opponent
-      ch.sendEvent('player_ready', {});
+      const myIdx = useGameStore.getState().myPlayerIndex;
+      ch.sendEvent('player_ready', { playerIndex: myIdx });
 
       // If opponent is already ready too, host fires the go signal
       if (opponentReadyRef.current && opponent.isHost) {
@@ -175,6 +196,7 @@ export default function LobbyScreen() {
     setScreen('menu');
     setIsReady(false);
     setOpponentReady(false);
+    setReadySlots(new Set());
     opponentReadyRef.current = false;
     setOpponent(null);
   }, []);
