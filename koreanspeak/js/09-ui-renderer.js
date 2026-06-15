@@ -651,31 +651,47 @@ class UIRenderer {
 
     const micBtn = screen.querySelector('#mic-btn');
     if (micBtn) {
-      let speechPromise = null;
+      if (!speechRecognizer.isSupported()) {
+        micBtn.parentElement.innerHTML = `
+          <div style="text-align:center;padding:16px;color:rgba(255,255,255,0.5);font-size:14px;">
+            Speech recognition is not supported in this browser.<br>
+            Try Chrome on Android or Safari on iOS 15+.
+          </div>`;
+      } else {
+        let speechPromise = null;
+        let pressTime = 0;
 
-      const onPress = (e) => {
-        if (e.type === 'touchstart') e.preventDefault();
-        if (speechPromise) return;
-        micBtn.classList.add('recording');
-        haptic.heavy();
-        audioEngine.startRecording();
-        speechPromise = speechRecognizer.listen(phrase.korean, CONFIG.SPEECH_TIMEOUT);
-      };
+        const onPress = (e) => {
+          if (e.type === 'touchstart') e.preventDefault();
+          if (speechPromise) return;
+          micBtn.classList.add('recording');
+          haptic.heavy();
+          pressTime = Date.now();
+          // Do NOT call audioEngine.startRecording() here — it conflicts with
+          // SpeechRecognition on mobile by opening a second getUserMedia stream
+          speechPromise = speechRecognizer.listen(phrase.korean, CONFIG.SPEECH_TIMEOUT);
+        };
 
-      const onRelease = async () => {
-        if (!speechPromise) return;
-        micBtn.classList.remove('recording');
-        audioEngine.stopRecording();
-        speechRecognizer.stop();
-        const pending = speechPromise;
-        speechPromise = null;
-        await this.processSpeechAttempt(screen, phrase, pending);
-      };
+        const onRelease = async () => {
+          if (!speechPromise) return;
+          micBtn.classList.remove('recording');
+          // Ensure at least 700 ms of listening before stopping so a short press
+          // doesn't cut off speech before the recognizer captures anything
+          const elapsed = Date.now() - pressTime;
+          if (elapsed < 700) {
+            await new Promise(r => setTimeout(r, 700 - elapsed));
+          }
+          speechRecognizer.stop();
+          const pending = speechPromise;
+          speechPromise = null;
+          await this.processSpeechAttempt(screen, phrase, pending);
+        };
 
-      micBtn.addEventListener('touchstart', onPress, { passive: false });
-      micBtn.addEventListener('touchend', onRelease);
-      micBtn.addEventListener('mousedown', onPress);
-      micBtn.addEventListener('mouseup', onRelease);
+        micBtn.addEventListener('touchstart', onPress, { passive: false });
+        micBtn.addEventListener('touchend', onRelease);
+        micBtn.addEventListener('mousedown', onPress);
+        micBtn.addEventListener('mouseup', onRelease);
+      }
     }
 
     screen.querySelector('#lesson-close').addEventListener('click', () => {
@@ -1115,13 +1131,14 @@ class UIRenderer {
     const micBtn = screen.querySelector('#chat-mic-btn');
     const statusEl = screen.querySelector('#chat-status');
     let speechPromise = null;
+    let pressTime = 0;
 
     const onPress = (e) => {
       if (e.type === 'touchstart') e.preventDefault();
       if (speechPromise || store.getState().isAIResponding) return;
       micBtn.classList.add('recording');
       haptic.heavy();
-      audioEngine.startRecording();
+      pressTime = Date.now();
       speechPromise = speechRecognizer.listen('', CONFIG.SPEECH_TIMEOUT);
       statusEl.textContent = 'Listening…';
     };
@@ -1129,7 +1146,8 @@ class UIRenderer {
     const onRelease = async () => {
       if (!speechPromise) return;
       micBtn.classList.remove('recording');
-      audioEngine.stopRecording();
+      const elapsed = Date.now() - pressTime;
+      if (elapsed < 700) await new Promise(r => setTimeout(r, 700 - elapsed));
       speechRecognizer.stop();
       const pending = speechPromise;
       speechPromise = null;
