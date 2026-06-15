@@ -24,7 +24,7 @@ class SpeechRecognizer {
     this.recognition.lang = 'ko-KR';
     this.recognition.interimResults = true;
     this.recognition.maxAlternatives = 5;
-    this.recognition.continuous = false;
+    this.recognition.continuous = true;  // stay open until stop() is called (tap-to-toggle UX)
   }
 
   async listen(targetPhrase, timeout = CONFIG.SPEECH_TIMEOUT) {
@@ -53,8 +53,10 @@ class SpeechRecognizer {
         store.setState({ isRecording: true });
 
         timeoutId = setTimeout(() => {
+          // Always stop after timeout; if speech was captured onend will resolve,
+          // otherwise reject with a clear message
+          this.stop();
           if (!hasResult) {
-            this.stop();
             reject_once(new Error('Listening timeout - no speech detected'));
           }
         }, timeout);

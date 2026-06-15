@@ -587,6 +587,13 @@ class UIRenderer {
     const vizCanvas = screen.querySelector('#audio-viz');
     let hasPlayed = false;
 
+    const advancePhase = (idx) => {
+      screen.querySelectorAll('.phase-dot').forEach((dot, i) => {
+        dot.classList.toggle('active', i === idx);
+        dot.classList.toggle('completed', i < idx);
+      });
+    };
+
     const autoPlay = async () => {
       playBtn.classList.add('playing');
       audioEngine.setOnVisualization((data) => {
@@ -599,6 +606,9 @@ class UIRenderer {
       }
       playBtn.classList.remove('playing');
       hasPlayed = true;
+
+      // Listen phase done — advance to Repeat
+      advancePhase(1);
 
       const micSection = screen.querySelector('#mic-section');
       if (micSection) {
@@ -769,11 +779,18 @@ class UIRenderer {
     if (!isSuccess) {
       gamification.loseHeart();
       haptic.error();
-    } else if (isPerfect) {
-      haptic.celebration();
-      this.showConfetti();
     } else {
-      haptic.success();
+      // Repeat phase done — advance to Use
+      screen.querySelectorAll('.phase-dot').forEach((dot, i) => {
+        dot.classList.toggle('active', i === 2);
+        dot.classList.toggle('completed', i < 2);
+      });
+      if (isPerfect) {
+        haptic.celebration();
+        this.showConfetti();
+      } else {
+        haptic.success();
+      }
     }
 
     // H7: only update SRS on the first attempt, not on retries
@@ -900,9 +917,9 @@ class UIRenderer {
       <div style="background:var(--color-bg-elevated);border-radius:20px;padding:28px;width:100%;max-width:320px;text-align:center;animation:scale-in 0.3s cubic-bezier(0.34,1.56,0.64,1);">
         <div style="font-size:40px;margin-bottom:12px;">😿</div>
         <h3 style="font-size:20px;font-weight:700;margin-bottom:8px;">Quit Lesson?</h3>
-        <p style="color:rgba(255,255,255,0.5);font-size:14px;margin-bottom:20px;">Your progress will be saved, but you will lose a heart.</p>
+        <p style="color:rgba(255,255,255,0.5);font-size:14px;margin-bottom:20px;">${store.getState().hearts > 0 ? 'Your progress will be saved, but you will lose a heart.' : 'Your progress will be saved.'}</p>
         <div style="display:flex;flex-direction:column;gap:10px;">
-          <button class="btn btn-danger" id="confirm-exit" style="width:100%;">Quit & Lose Heart</button>
+          <button class="btn btn-danger" id="confirm-exit" style="width:100%;">${store.getState().hearts > 0 ? 'Quit & Lose Heart' : 'Quit'}</button>
           <button class="btn btn-secondary" id="cancel-exit" style="width:100%;">Keep Learning</button>
         </div>
       </div>
@@ -918,7 +935,7 @@ class UIRenderer {
           : store.setState({ totalXP: state.totalXP + this.sessionStats.xp });
         this.sessionStats = { correct: 0, total: 0, xp: 0, combo: 0, startTime: null };
       }
-      gamification.loseHeart();
+      if (store.getState().hearts > 0) gamification.loseHeart();
       this.isLessonActive = false;
       this.currentPhraseIdx = 0;
       overlay.remove();
