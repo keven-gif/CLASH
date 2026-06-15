@@ -570,14 +570,14 @@ class UIRenderer {
           ${CONFIG.AUDIO_SPEEDS.map(s => `<button class="speed-btn ${s === state.audioSpeed ? 'active' : ''}" data-speed="${s}">${s}x</button>`).join('')}
         </div>
         <div class="mic-section" id="mic-section" style="display:none;">
-          <button class="mic-button" id="mic-btn" aria-label="Hold to speak">
+          <button class="mic-button" id="mic-btn" aria-label="Tap to speak">
             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
               <line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/>
             </svg>
             <div class="recording-ring"></div>
           </button>
-          <div class="mic-label">Hold to speak</div>
+          <div class="mic-label">Tap to speak</div>
         </div>
         <div id="feedback-area" aria-live="polite" aria-atomic="true" style="display:none;width:100%;max-width:340px;"></div>
       </div>
@@ -658,39 +658,44 @@ class UIRenderer {
             Try Chrome on Android or Safari on iOS 15+.
           </div>`;
       } else {
+        const micLabel = screen.querySelector('.mic-label');
         let speechPromise = null;
-        let pressTime = 0;
+        let listenStartTime = 0;
 
-        const onPress = (e) => {
-          if (e.type === 'touchstart') e.preventDefault();
-          if (speechPromise) return;
-          micBtn.classList.add('recording');
-          haptic.heavy();
-          pressTime = Date.now();
-          // Do NOT call audioEngine.startRecording() here — it conflicts with
-          // SpeechRecognition on mobile by opening a second getUserMedia stream
-          speechPromise = speechRecognizer.listen(phrase.korean, CONFIG.SPEECH_TIMEOUT);
-        };
-
-        const onRelease = async () => {
-          if (!speechPromise) return;
+        const endListening = async (pending, stopFirst) => {
           micBtn.classList.remove('recording');
-          // Ensure at least 700 ms of listening before stopping so a short press
-          // doesn't cut off speech before the recognizer captures anything
-          const elapsed = Date.now() - pressTime;
-          if (elapsed < 700) {
-            await new Promise(r => setTimeout(r, 700 - elapsed));
+          micBtn.setAttribute('aria-label', 'Tap to speak');
+          if (micLabel) micLabel.textContent = 'Tap to speak';
+          if (stopFirst) {
+            const elapsed = Date.now() - listenStartTime;
+            if (elapsed < 700) await new Promise(r => setTimeout(r, 700 - elapsed));
+            speechRecognizer.stop();
           }
-          speechRecognizer.stop();
-          const pending = speechPromise;
           speechPromise = null;
           await this.processSpeechAttempt(screen, phrase, pending);
         };
 
-        micBtn.addEventListener('touchstart', onPress, { passive: false });
-        micBtn.addEventListener('touchend', onRelease);
-        micBtn.addEventListener('mousedown', onPress);
-        micBtn.addEventListener('mouseup', onRelease);
+        const onTapMic = (e) => {
+          if (e.type === 'touchstart') e.preventDefault();
+          if (!speechPromise) {
+            micBtn.classList.add('recording');
+            micBtn.setAttribute('aria-label', 'Tap to stop');
+            if (micLabel) micLabel.textContent = 'Tap to stop';
+            haptic.heavy();
+            listenStartTime = Date.now();
+            const p = speechRecognizer.listen(phrase.korean, CONFIG.SPEECH_TIMEOUT);
+            speechPromise = p;
+            // Auto-process if recognition ends naturally (silence or timeout)
+            p.finally(() => { if (speechPromise === p) endListening(p, false); });
+          } else {
+            const pending = speechPromise;
+            speechPromise = null;
+            endListening(pending, true);
+          }
+        };
+
+        micBtn.addEventListener('touchstart', onTapMic, { passive: false });
+        micBtn.addEventListener('click', onTapMic);
       }
     }
 
@@ -1110,7 +1115,7 @@ class UIRenderer {
       </div>
       <div id="chat-messages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;"></div>
       <div style="padding:12px 16px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:12px;">
-        <button id="chat-mic-btn" class="mic-button" style="width:56px;height:56px;flex-shrink:0;" aria-label="Hold to speak">
+        <button id="chat-mic-btn" class="mic-button" style="width:56px;height:56px;flex-shrink:0;" aria-label="Tap to speak">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
             <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
@@ -1118,7 +1123,7 @@ class UIRenderer {
           </svg>
           <div class="recording-ring"></div>
         </button>
-        <div id="chat-status" style="color:rgba(255,255,255,0.4);font-size:13px;">Hold mic to speak in Korean</div>
+        <div id="chat-status" style="color:rgba(255,255,255,0.4);font-size:13px;">Tap mic to speak in Korean</div>
       </div>
     `;
 
@@ -1131,25 +1136,11 @@ class UIRenderer {
     const micBtn = screen.querySelector('#chat-mic-btn');
     const statusEl = screen.querySelector('#chat-status');
     let speechPromise = null;
-    let pressTime = 0;
+    let listenStartTime = 0;
 
-    const onPress = (e) => {
-      if (e.type === 'touchstart') e.preventDefault();
-      if (speechPromise || store.getState().isAIResponding) return;
-      micBtn.classList.add('recording');
-      haptic.heavy();
-      pressTime = Date.now();
-      speechPromise = speechRecognizer.listen('', CONFIG.SPEECH_TIMEOUT);
-      statusEl.textContent = 'Listening…';
-    };
-
-    const onRelease = async () => {
-      if (!speechPromise) return;
+    const processChat = async (pending) => {
       micBtn.classList.remove('recording');
-      const elapsed = Date.now() - pressTime;
-      if (elapsed < 700) await new Promise(r => setTimeout(r, 700 - elapsed));
-      speechRecognizer.stop();
-      const pending = speechPromise;
+      micBtn.setAttribute('aria-label', 'Tap to speak');
       speechPromise = null;
       statusEl.textContent = 'Processing…';
       try {
@@ -1167,13 +1158,36 @@ class UIRenderer {
       } catch (err) {
         console.warn('Chat speech error:', err);
       }
-      statusEl.textContent = 'Hold mic to speak in Korean';
+      statusEl.textContent = 'Tap mic to speak in Korean';
     };
 
-    micBtn.addEventListener('touchstart', onPress, { passive: false });
-    micBtn.addEventListener('touchend', onRelease);
-    micBtn.addEventListener('mousedown', onPress);
-    micBtn.addEventListener('mouseup', onRelease);
+    const onTapChatMic = (e) => {
+      if (e.type === 'touchstart') e.preventDefault();
+      if (store.getState().isAIResponding) return;
+      if (!speechPromise) {
+        micBtn.classList.add('recording');
+        micBtn.setAttribute('aria-label', 'Tap to stop');
+        haptic.heavy();
+        listenStartTime = Date.now();
+        const p = speechRecognizer.listen('', CONFIG.SPEECH_TIMEOUT);
+        speechPromise = p;
+        statusEl.textContent = 'Tap again to stop…';
+        p.finally(() => { if (speechPromise === p) processChat(p); });
+      } else {
+        const pending = speechPromise;
+        speechPromise = null;
+        const doStop = async () => {
+          const elapsed = Date.now() - listenStartTime;
+          if (elapsed < 700) await new Promise(r => setTimeout(r, 700 - elapsed));
+          speechRecognizer.stop();
+          await processChat(pending);
+        };
+        doStop();
+      }
+    };
+
+    micBtn.addEventListener('touchstart', onTapChatMic, { passive: false });
+    micBtn.addEventListener('click', onTapChatMic);
 
     // Start the conversation
     statusEl.textContent = 'Starting conversation…';
