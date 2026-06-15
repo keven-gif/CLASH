@@ -444,12 +444,63 @@ class UIRenderer {
     const state = store.getState();
     const weeks = CURRICULUM.getAllWeeks();
 
+    // Collect all unlocked phrases for the Words tab
+    const allPhrases = [];
+    const seenIds = new Set();
+    for (let d = 1; d <= state.currentDay; d++) {
+      const lesson = CURRICULUM.getLesson(d);
+      if (lesson?.phrases) {
+        for (const p of lesson.phrases) {
+          if (!seenIds.has(p.id)) { seenIds.add(p.id); allPhrases.push(p); }
+        }
+      }
+    }
+    const categories = ['all', ...new Set(allPhrases.map(p => p.category).filter(Boolean))];
+
+    const wordsHTML = allPhrases.length === 0
+      ? `<div class="empty-state" style="margin-top:48px;">
+           <div class="empty-state-icon">📖</div>
+           <div class="empty-state-title">No Words Yet</div>
+           <div class="empty-state-message">Complete your first lesson to unlock words to practice.</div>
+         </div>`
+      : `<div style="display:flex;gap:8px;overflow-x:auto;padding:12px 16px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
+           ${categories.map(cat => `
+             <button class="cat-chip" data-cat="${cat}" style="white-space:nowrap;padding:6px 14px;border-radius:999px;border:1px solid ${cat === 'all' ? 'var(--color-accent-success)' : 'rgba(255,255,255,0.12)'};background:${cat === 'all' ? 'rgba(88,204,2,0.1)' : 'transparent'};color:${cat === 'all' ? 'var(--color-accent-success)' : 'rgba(255,255,255,0.5)'};font-size:13px;font-weight:500;cursor:pointer;">
+               ${CONFIG.CATEGORY_ICONS[cat] || ''} ${cat === 'all' ? 'All' : cat.charAt(0).toUpperCase() + cat.slice(1)}
+             </button>
+           `).join('')}
+         </div>
+         <div style="display:flex;flex-direction:column;gap:8px;padding:0 16px 80px;">
+           ${allPhrases.map(phrase => `
+             <div class="card phrase-pick-card" data-phrase-id="${phrase.id}" data-cat="${phrase.category || 'general'}" style="padding:14px;">
+               <div style="display:flex;align-items:center;gap:10px;">
+                 <div style="flex:1;min-width:0;">
+                   <div lang="ko" style="font-size:22px;font-weight:700;line-height:1.2;">${escapeHtml(phrase.korean)}</div>
+                   <div style="font-size:12px;color:rgba(255,255,255,0.35);margin-top:1px;">${escapeHtml(phrase.romanization)}</div>
+                   <div style="font-size:13px;color:rgba(255,255,255,0.5);margin-top:2px;">${escapeHtml(phrase.english)}</div>
+                 </div>
+                 <button class="word-play-btn" data-korean="${escapeHtml(phrase.korean)}" aria-label="Play" style="width:38px;height:38px;border-radius:50%;background:rgba(88,204,2,0.1);border:none;color:var(--color-accent-success);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;">
+                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                 </button>
+                 <button class="word-speak-btn" data-phrase-id="${phrase.id}" aria-label="Speak" style="width:38px;height:38px;border-radius:50%;background:rgba(88,204,2,0.08);border:1px solid rgba(88,204,2,0.2);color:rgba(255,255,255,0.6);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:all 0.15s;">
+                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+                 </button>
+               </div>
+               <div class="word-practice-area" id="wpa-${phrase.id}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);"></div>
+             </div>
+           `).join('')}
+         </div>`;
+
     screen.innerHTML = `
       <div class="screen-header">
-        <div style="font-size:20px;font-weight:700;">Curriculum</div>
+        <div style="font-size:20px;font-weight:700;">Learn</div>
         <div style="font-size:13px;color:rgba(255,255,255,0.4);">${state.currentDay} / ${CONFIG.CURRICULUM_DAYS} days</div>
       </div>
-      <div class="screen-content" style="padding-top:4px;">
+      <div style="display:flex;border-bottom:1px solid rgba(255,255,255,0.08);">
+        <button id="tab-curriculum" style="flex:1;padding:11px 8px;background:none;border:none;border-bottom:2px solid var(--color-accent-success);color:var(--color-accent-success);font-size:14px;font-weight:600;">Curriculum</button>
+        <button id="tab-words" style="flex:1;padding:11px 8px;background:none;border:none;border-bottom:2px solid transparent;color:rgba(255,255,255,0.4);font-size:14px;font-weight:500;">Words</button>
+      </div>
+      <div id="curriculum-panel" class="screen-content" style="padding-top:4px;">
         ${weeks.map((week, wi) => `
           <div class="week-section">
             <div class="week-header">
@@ -485,15 +536,139 @@ class UIRenderer {
           </div>
         `).join('')}
       </div>
+      <div id="words-panel" class="screen-content" style="display:none;">
+        ${wordsHTML}
+      </div>
     `;
 
+    // ---- Tab switching ----
+    const tabCurriculum = screen.querySelector('#tab-curriculum');
+    const tabWords = screen.querySelector('#tab-words');
+    const curriculumPanel = screen.querySelector('#curriculum-panel');
+    const wordsPanel = screen.querySelector('#words-panel');
+
+    const switchTab = (tab) => {
+      const isCurriculum = tab === 'curriculum';
+      curriculumPanel.style.display = isCurriculum ? '' : 'none';
+      wordsPanel.style.display = isCurriculum ? 'none' : '';
+      tabCurriculum.style.borderBottomColor = isCurriculum ? 'var(--color-accent-success)' : 'transparent';
+      tabCurriculum.style.color = isCurriculum ? 'var(--color-accent-success)' : 'rgba(255,255,255,0.4)';
+      tabCurriculum.style.fontWeight = isCurriculum ? '600' : '500';
+      tabWords.style.borderBottomColor = isCurriculum ? 'transparent' : 'var(--color-accent-success)';
+      tabWords.style.color = isCurriculum ? 'rgba(255,255,255,0.4)' : 'var(--color-accent-success)';
+      tabWords.style.fontWeight = isCurriculum ? '500' : '600';
+    };
+    tabCurriculum.addEventListener('click', () => switchTab('curriculum'));
+    tabWords.addEventListener('click', () => switchTab('words'));
+
+    // ---- Curriculum node clicks ----
     screen.querySelectorAll('.lesson-node:not(.locked)').forEach(node => {
       node.addEventListener('click', () => {
         haptic.tap();
-        const dayNum = parseInt(node.dataset.day);
-        const lesson = CURRICULUM.getLesson(dayNum);
+        const lesson = CURRICULUM.getLesson(parseInt(node.dataset.day));
         if (lesson) this.startLesson(lesson);
       });
+    });
+
+    // ---- Category filter chips ----
+    screen.querySelectorAll('.cat-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        haptic.tap();
+        const cat = chip.dataset.cat;
+        screen.querySelectorAll('.cat-chip').forEach(c => {
+          const active = c.dataset.cat === cat;
+          c.style.borderColor = active ? 'var(--color-accent-success)' : 'rgba(255,255,255,0.12)';
+          c.style.background = active ? 'rgba(88,204,2,0.1)' : 'transparent';
+          c.style.color = active ? 'var(--color-accent-success)' : 'rgba(255,255,255,0.5)';
+        });
+        screen.querySelectorAll('.phrase-pick-card').forEach(card => {
+          card.style.display = (cat === 'all' || card.dataset.cat === cat) ? '' : 'none';
+        });
+      });
+    });
+
+    // ---- Play buttons ----
+    screen.querySelectorAll('.word-play-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        haptic.tap();
+        audioEngine.speakKorean(btn.dataset.korean);
+      });
+    });
+
+    // ---- Speak buttons (tap-to-toggle per card) ----
+    screen.querySelectorAll('.word-speak-btn').forEach(btn => {
+      const phraseId = btn.dataset.phraseId;
+      const phrase = allPhrases.find(p => p.id === phraseId);
+      const practiceArea = screen.querySelector(`#wpa-${phraseId}`);
+      if (!phrase || !practiceArea) return;
+
+      let speechPromise = null;
+      let listenStart = 0;
+
+      const showResult = async (pending, stopFirst) => {
+        // Reset button appearance
+        btn.style.background = 'rgba(88,204,2,0.08)';
+        btn.style.borderColor = 'rgba(88,204,2,0.2)';
+        btn.style.color = 'rgba(255,255,255,0.6)';
+        if (stopFirst) {
+          const elapsed = Date.now() - listenStart;
+          if (elapsed < 700) await new Promise(r => setTimeout(r, 700 - elapsed));
+          speechRecognizer.stop();
+        }
+        speechPromise = null;
+        practiceArea.innerHTML = `<div style="display:flex;align-items:center;gap:8px;"><div style="font-size:12px;color:rgba(255,255,255,0.35);">Analyzing…</div><div class="typing-indicator" style="display:inline-flex;transform:scale(0.7);"><span></span><span></span><span></span></div></div>`;
+
+        try {
+          const result = await pending;
+          const isSuccess = result.score >= 60;
+          const el = document.createElement('div');
+          el.style.cssText = 'display:flex;align-items:center;gap:10px;';
+          el.innerHTML = `
+            <div style="font-size:24px;font-weight:800;color:${result.feedback.color};min-width:52px;">${result.score}%</div>
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:600;color:${result.feedback.color};">${result.feedback.emoji} ${result.feedback.message}</div>
+              ${result.transcript ? `<div class="result-transcript" style="font-size:12px;color:rgba(255,255,255,0.35);margin-top:2px;"></div>` : ''}
+            </div>`;
+          if (result.transcript) {
+            el.querySelector('.result-transcript').textContent = `You said: "${result.transcript}"`;
+          }
+          practiceArea.innerHTML = '';
+          practiceArea.appendChild(el);
+          isSuccess ? haptic.success() : haptic.error();
+          if (!isSuccess && store.getState().hearts > 0) gamification.loseHeart();
+        } catch (err) {
+          practiceArea.innerHTML = `<div style="font-size:13px;color:rgba(255,255,255,0.4);">${err.message || 'Could not hear you. Try again!'}</div>`;
+          haptic.error();
+        }
+      };
+
+      const startSpeak = () => {
+        audioEngine.cancelSpeech();
+        btn.style.background = 'rgba(255,75,75,0.15)';
+        btn.style.borderColor = 'rgba(255,75,75,0.4)';
+        btn.style.color = '#ff4b4b';
+        haptic.heavy();
+        listenStart = Date.now();
+        practiceArea.style.display = 'block';
+        practiceArea.innerHTML = `<div style="font-size:13px;color:rgba(88,204,2,0.7);">Listening… tap mic again to stop</div>`;
+        const p = speechRecognizer.listen(phrase.korean, CONFIG.SPEECH_TIMEOUT);
+        speechPromise = p;
+        p.finally(() => { if (speechPromise === p) showResult(p, false); });
+      };
+
+      const onTap = (e) => {
+        if (e.type === 'touchstart') e.preventDefault();
+        if (!speechPromise) {
+          startSpeak();
+        } else {
+          const pending = speechPromise;
+          speechPromise = null;
+          showResult(pending, true);
+        }
+      };
+
+      btn.addEventListener('touchstart', onTap, { passive: false });
+      btn.addEventListener('click', onTap);
     });
 
     return screen;
