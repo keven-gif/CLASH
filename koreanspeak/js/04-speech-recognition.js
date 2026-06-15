@@ -23,7 +23,7 @@ class SpeechRecognizer {
     this.recognition = new SpeechRecognition();
     this.recognition.lang = 'ko-KR';
     this.recognition.interimResults = true;
-    this.recognition.maxAlternatives = 3;
+    this.recognition.maxAlternatives = 5;
     this.recognition.continuous = false;
   }
 
@@ -64,11 +64,32 @@ class SpeechRecognizer {
         hasResult = true;
         interimTranscript = '';
 
+        const norm = s => String(s).toLowerCase()
+          .replace(/[^가-힯ᄀ-ᇿ㄰-㆏\w\s]/g, '')
+          .trim();
+        const targetNorm = norm(targetPhrase || '');
+
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const result = event.results[i];
           if (result.isFinal) {
-            finalTranscript += result[0].transcript;
-            confidence = result[0].confidence;
+            // When we have a target phrase, pick the alternative that best matches it
+            // rather than always taking [0]. This helps when the top guess is a
+            // phonetically similar but wrong word (e.g. 들 instead of 둘).
+            let bestAlt = result[0];
+            if (targetNorm && result.length > 1) {
+              let bestScore = -1;
+              for (let j = 0; j < result.length; j++) {
+                const altNorm = norm(result[j].transcript);
+                const maxLen = Math.max(targetNorm.length, altNorm.length);
+                const sim = maxLen > 0
+                  ? 1 - this.levenshteinDistance(targetNorm, altNorm) / maxLen
+                  : 0;
+                const s = sim * 0.85 + (result[j].confidence || 0) * 0.15;
+                if (s > bestScore) { bestScore = s; bestAlt = result[j]; }
+              }
+            }
+            finalTranscript += bestAlt.transcript;
+            confidence = bestAlt.confidence || 0;
           } else {
             interimTranscript += result[0].transcript;
           }
@@ -167,9 +188,11 @@ class SpeechRecognizer {
     const maxLen = Math.max(targetNorm.length, spokenNorm.length);
     const similarity = maxLen > 0 ? 1 - (distance / maxLen) : 0;
 
-    const similarityWeight = 0.7;
-    const confidenceWeight = 0.3;
-    const score = Math.round((similarity * 100 * similarityWeight) + (confidence * 100 * confidenceWeight));
+    // Confidence is weighted low because iOS often returns 0 even for correct speech
+    const similarityWeight = 0.85;
+    const confidenceWeight = 0.15;
+    const safeConfidence = confidence || 0;
+    const score = Math.round((similarity * 100 * similarityWeight) + (safeConfidence * 100 * confidenceWeight));
 
     return Math.min(Math.max(score, 0), 100);
   }
