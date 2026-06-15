@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'koreanspeak-v6';
+const CACHE_VERSION = 'koreanspeak-v7';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const AUDIO_CACHE = `${CACHE_VERSION}-audio`;
 
