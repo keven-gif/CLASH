@@ -28,7 +28,11 @@ class SpeechRecognizer {
   }
 
   async listen(targetPhrase, timeout = CONFIG.SPEECH_TIMEOUT) {
-    if (!this.recognition) this.init();
+    // Always create a fresh instance to avoid stale state after errors or aborts
+    if (this.recognition && this.isListening) {
+      try { this.recognition.abort(); } catch (e) {}
+    }
+    this.init();
 
     return new Promise((resolve, reject) => {
       let finalTranscript = '';
@@ -88,15 +92,16 @@ class SpeechRecognizer {
         this.isListening = false;
         store.setState({ isRecording: false, interimTranscript: '' });
 
-        if (finalTranscript) {
-          const score = this.calculateScore(targetPhrase, finalTranscript, confidence);
+        const text = finalTranscript || interimTranscript;
+        if (text) {
+          const score = this.calculateScore(targetPhrase, text, confidence);
           resolve({
-            transcript: finalTranscript,
+            transcript: text,
             confidence,
             score,
             feedback: this.getFeedback(score)
           });
-        } else if (!hasResult) {
+        } else {
           reject(new Error('No speech captured. Please try speaking louder.'));
         }
       };

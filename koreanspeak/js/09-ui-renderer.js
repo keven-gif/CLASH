@@ -638,30 +638,31 @@ class UIRenderer {
 
     const micBtn = screen.querySelector('#mic-btn');
     if (micBtn) {
-      micBtn.addEventListener('touchstart', async (e) => {
-        e.preventDefault();
+      let speechPromise = null;
+
+      const onPress = (e) => {
+        if (e.type === 'touchstart') e.preventDefault();
+        if (speechPromise) return;
         micBtn.classList.add('recording');
         haptic.heavy();
-        await audioEngine.startRecording();
-      }, { passive: false });
+        audioEngine.startRecording();
+        speechPromise = speechRecognizer.listen(phrase.korean, CONFIG.SPEECH_TIMEOUT);
+      };
 
-      micBtn.addEventListener('touchend', async () => {
+      const onRelease = async () => {
+        if (!speechPromise) return;
         micBtn.classList.remove('recording');
         audioEngine.stopRecording();
-        await this.processSpeechAttempt(screen, phrase);
-      });
+        speechRecognizer.stop();
+        const pending = speechPromise;
+        speechPromise = null;
+        await this.processSpeechAttempt(screen, phrase, pending);
+      };
 
-      micBtn.addEventListener('mousedown', async () => {
-        micBtn.classList.add('recording');
-        haptic.heavy();
-        await audioEngine.startRecording();
-      });
-
-      micBtn.addEventListener('mouseup', async () => {
-        micBtn.classList.remove('recording');
-        audioEngine.stopRecording();
-        await this.processSpeechAttempt(screen, phrase);
-      });
+      micBtn.addEventListener('touchstart', onPress, { passive: false });
+      micBtn.addEventListener('touchend', onRelease);
+      micBtn.addEventListener('mousedown', onPress);
+      micBtn.addEventListener('mouseup', onRelease);
     }
 
     screen.querySelector('#lesson-close').addEventListener('click', () => {
@@ -672,7 +673,7 @@ class UIRenderer {
     return screen;
   }
 
-  async processSpeechAttempt(screen, phrase) {
+  async processSpeechAttempt(screen, phrase, pendingResult = null) {
     const feedbackArea = screen.querySelector('#feedback-area');
     const micSection = screen.querySelector('#mic-section');
 
@@ -681,7 +682,7 @@ class UIRenderer {
     micSection.style.display = 'none';
 
     try {
-      const result = await speechRecognizer.listen(phrase.korean, CONFIG.SPEECH_TIMEOUT);
+      const result = await (pendingResult ?? speechRecognizer.listen(phrase.korean, CONFIG.SPEECH_TIMEOUT));
       this.showFeedback(screen, result, phrase);
     } catch (error) {
       gamification.loseHeart();
