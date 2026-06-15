@@ -45,9 +45,21 @@ class AudioEngine {
       const findKoreanVoice = () => {
         const voices = window.speechSynthesis.getVoices();
         if (voices.length === 0) return;
-        this.koreanVoice = voices.find(v =>
-          v.lang.includes('ko') || v.lang.includes('Korean')
-        ) || voices.find(v => v.lang.includes('ko'));
+
+        const koVoices = voices.filter(v =>
+          v.lang === 'ko-KR' || v.lang === 'ko' ||
+          v.lang.startsWith('ko-') || v.lang.includes('Korean')
+        );
+
+        // Prefer local/on-device voices (higher quality, work offline)
+        // then enhanced quality, then exact ko-KR match, then any Korean voice
+        this.koreanVoice =
+          koVoices.find(v => v.localService && /enhanced/i.test(v.name)) ||
+          koVoices.find(v => v.localService) ||
+          koVoices.find(v => v.lang === 'ko-KR') ||
+          koVoices[0] ||
+          null;
+
         // H5: unregister handler and clear fallback timer once voices are found
         window.speechSynthesis.onvoiceschanged = null;
         clearTimeout(fallbackTimer);
@@ -75,7 +87,7 @@ class AudioEngine {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'ko-KR';
       utterance.rate = speed || store.getState().audioSpeed || CONFIG.DEFAULT_AUDIO_SPEED;
-      utterance.pitch = 1.0;
+      utterance.pitch = 1.1;
       utterance.volume = 1.0;
 
       if (this.koreanVoice) {

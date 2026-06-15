@@ -42,7 +42,7 @@ const CURRICULUM = {
         ]),
         this.createDay(2, "Numbers 1-10", "listening_speaking", 12, [
           { id: "p007", korean: "하나", romanization: "hana", english: "One", category: "number", difficulty: 1 },
-          { id: "p008", korean: "둘", romanization: "dul", english: "Two", category: "number", difficulty: 1 },
+          { id: "p008", korean: "둘", romanization: "dool", english: "Two", category: "number", difficulty: 1 },
           { id: "p009", korean: "셋", romanization: "set", english: "Three", category: "number", difficulty: 1 },
           { id: "p010", korean: "넷", romanization: "net", english: "Four", category: "number", difficulty: 1 },
           { id: "p011", korean: "다섯", romanization: "daseot", english: "Five", category: "number", difficulty: 2 },
@@ -69,7 +69,7 @@ const CURRICULUM = {
         ]),
         this.createDay(5, "Numbers 11-20", "listening_speaking", 12, [
           { id: "p028", korean: "열하나", romanization: "yeolhana", english: "Eleven", category: "number", difficulty: 2 },
-          { id: "p029", korean: "열둘", romanization: "yeoldul", english: "Twelve", category: "number", difficulty: 2 },
+          { id: "p029", korean: "열둘", romanization: "yeoldool", english: "Twelve", category: "number", difficulty: 2 },
           { id: "p030", korean: "열셋", romanization: "yeolset", english: "Thirteen", category: "number", difficulty: 2 },
           { id: "p031", korean: "열넷", romanization: "yeolnet", english: "Fourteen", category: "number", difficulty: 2 },
           { id: "p032", korean: "열다섯", romanization: "yeoldaseot", english: "Fifteen", category: "number", difficulty: 2 },
@@ -86,7 +86,7 @@ const CURRICULUM = {
         this.createDay(7, "Week 1 Review", "review", 15, [
           { id: "p040", korean: "안녕하세요", romanization: "annyeonghaseyo", english: "Hello", category: "greeting", difficulty: 1 },
           { id: "p041", korean: "감사합니다", romanization: "gamsahamnida", english: "Thank you", category: "courtesy", difficulty: 1 },
-          { id: "p042", korean: "하나 둘 셋", romanization: "hana dul set", english: "One two three", category: "number", difficulty: 1 },
+          { id: "p042", korean: "하나 둘 셋", romanization: "hana dool set", english: "One two three", category: "number", difficulty: 1 },
           { id: "p043", korean: "실례합니다", romanization: "sillyehamnida", english: "Excuse me", category: "courtesy", difficulty: 2 },
           { id: "p044", korean: "주세요", romanization: "juseyo", english: "Please give me", category: "courtesy", difficulty: 2 },
           { id: "p045", korean: "좋아요", romanization: "joayo", english: "It's good", category: "emotion", difficulty: 2 }
