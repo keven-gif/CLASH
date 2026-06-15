@@ -30,6 +30,8 @@ export default function Gameplay() {
   const resumeGame = useGameStore((s) => s.resumeGame);
   const onlineMode = useGameStore((s) => s.onlineMode);
   const isHost = useGameStore((s) => s.isHost);
+  const myPlayerIndex = useGameStore((s) => s.myPlayerIndex);
+  const roomPlayers = useGameStore((s) => s.roomPlayers);
 
   const storeUser = useGameStore((s) => s.user);
   const matchChannel = useGameStore((s) => s.matchChannel);
@@ -134,15 +136,33 @@ export default function Gameplay() {
     const spawnPoints = getSpawnPoints(stageId);
     platformsRef.current = platforms;
 
-    // Create fighters
-    const p1Spawn = spawnPoints[0] ?? { x: -60, y: 50 };
-    const p2Spawn = spawnPoints[1] ?? { x: 60, y: 50 };
-    const p1 = createFighter(p1Character.id, p1Spawn);
-    const p2 = createFighter(p2Character.id, p2Spawn);
+    // Create fighters — in online multi-player, we may have 3-4 fighters
+    const numOnlinePlayers = onlineMode && roomPlayers.length >= 2 ? roomPlayers.length : 2;
+    const defaultSpawns = [
+      { x: -60, y: 50 }, { x: 60, y: 50 },
+      { x: -30, y: -50 }, { x: 30, y: -50 },
+    ];
+    const allSpawns = spawnPoints.length >= numOnlinePlayers
+      ? spawnPoints.slice(0, numOnlinePlayers)
+      : Array.from({ length: numOnlinePlayers }, (_, i) => spawnPoints[i % spawnPoints.length] ?? defaultSpawns[i]);
+
+    const p1 = createFighter(p1Character.id, allSpawns[0] ?? defaultSpawns[0]);
+    const p2 = createFighter(p2Character.id, allSpawns[1] ?? defaultSpawns[1]);
     p1.direction = 1;
     p2.direction = -1;
     p1.stocks = stockCount;
     p2.stocks = stockCount;
+
+    // Extra fighters for 3-4 player online matches
+    const extraFighters = numOnlinePlayers > 2
+      ? Array.from({ length: numOnlinePlayers - 2 }, (_, i) => {
+          const fighter = createFighter(p1Character.id, allSpawns[2 + i] ?? defaultSpawns[2 + i]);
+          fighter.stocks = stockCount;
+          fighter.direction = i % 2 === 0 ? 1 : -1;
+          return fighter;
+        })
+      : undefined;
+
     fightersRef.current = { p1, p2 };
 
     // Input
@@ -164,6 +184,15 @@ export default function Gameplay() {
           gameLoopRef.current?.applyRemoteState(state);
         });
       }
+
+      // Host: receive remote inputs for extra fighters (3-4 player)
+      if (isHost && numOnlinePlayers > 2) {
+        matchChannel.onEvent('player_input', (data: { playerIndex: number; input: any }) => {
+          if (data?.playerIndex !== undefined && data.playerIndex !== myPlayerIndex) {
+            gameLoopRef.current?.applyRemoteInput(data.playerIndex, data.input);
+          }
+        });
+      }
     }
 
     // Game loop
@@ -174,13 +203,20 @@ export default function Gameplay() {
       platforms,
       player1: p1,
       player2: p2,
+      extraFighters,
+      myPlayerIndex: onlineMode ? myPlayerIndex : 0,
       inputHandler,
       aiController: ai,
-      getP2Input: onlineMode
+      getP2Input: onlineMode && numOnlinePlayers <= 2
         ? () => latestRemoteInput.current
         : undefined,
       onLocalInput: onlineMode
-        ? (input) => { realtimeRef.current?.sendInput(input); }
+        ? (input) => {
+            realtimeRef.current?.sendInput(input);
+            if (numOnlinePlayers > 2) {
+              realtimeRef.current?.sendEvent('player_input', { playerIndex: myPlayerIndex, input });
+            }
+          }
         : undefined,
       onStateSync: (onlineMode && isHost)
         ? (state) => { realtimeRef.current?.sendEvent('state_sync', state); }

@@ -37,6 +37,8 @@ export default function CharacterSelect() {
   const isHost           = useGameStore(s => s.isHost);
   const matchOpponent    = useGameStore(s => s.matchOpponent);
   const matchChannel     = useGameStore(s => s.matchChannel);
+  const myPlayerIndex    = useGameStore(s => s.myPlayerIndex);
+  const roomPlayers      = useGameStore(s => s.roomPlayers);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
@@ -44,32 +46,51 @@ export default function CharacterSelect() {
 
   const [myReady, setMyReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
+  const [pickedChars, setPickedChars] = useState<Record<number, string>>({});
   const [opponentCharId, setOpponentCharId] = useState<string | null>(null);
   const [waitingForChannel, setWaitingForChannel] = useState(false);
+  const numPlayers = roomPlayers.length >= 2 ? roomPlayers.length : 2;
 
   useEffect(() => { audioManager.playMusic('music-title'); }, []);
 
   useEffect(() => {
     if (!onlineMode || !matchChannel) return;
 
-    matchChannel.onEvent('char_select', (data: { charId: string }) => {
-      if (data?.charId) { setOpponentCharId(data.charId); setOpponentReady(true); }
+    matchChannel.onEvent('char_select', (data: { charId: string; playerIndex?: number }) => {
+      if (!data?.charId) return;
+      const idx = data.playerIndex ?? 1;
+      setPickedChars(prev => ({ ...prev, [idx]: data.charId }));
+      if (idx !== myPlayerIndex) {
+        setOpponentCharId(data.charId);
+        setOpponentReady(true);
+      }
     });
 
-    matchChannel.onEvent('match_start', (data: { p1CharId: string; p2CharId: string; stageId: string }) => {
+    matchChannel.onEvent('match_start', (data: { fighters?: { playerIndex: number; charId: string }[]; p1CharId?: string; p2CharId?: string; stageId: string }) => {
       if (navigatedRef.current) return;
       navigatedRef.current = true;
-      const myChar  = CHARACTERS.find(c => c.id === data.p2CharId);
-      const oppChar = CHARACTERS.find(c => c.id === data.p1CharId);
-      if (myChar)  selectCharacter(1, myChar);
-      if (oppChar) selectCharacter(2, oppChar);
+      if (data.fighters) {
+        // Multi-player format
+        const myEntry = data.fighters.find(f => f.playerIndex === myPlayerIndex);
+        const oppEntry = data.fighters.find(f => f.playerIndex !== myPlayerIndex);
+        const myChar  = CHARACTERS.find(c => c.id === myEntry?.charId);
+        const oppChar = CHARACTERS.find(c => c.id === oppEntry?.charId);
+        if (myChar)  selectCharacter(1, myChar);
+        if (oppChar) selectCharacter(2, oppChar);
+      } else {
+        // Legacy 2-player format
+        const myChar  = CHARACTERS.find(c => c.id === data.p2CharId);
+        const oppChar = CHARACTERS.find(c => c.id === data.p1CharId);
+        if (myChar)  selectCharacter(1, myChar);
+        if (oppChar) selectCharacter(2, oppChar);
+      }
       const stage = STAGES.find(s => s.id === data.stageId) ?? STAGES[0];
       useGameStore.getState().selectStage(stage);
       navigate('/play');
     });
 
     if (player1Character) {
-      matchChannel.sendEvent('char_select', { charId: player1Character.id });
+      matchChannel.sendEvent('char_select', { charId: player1Character.id, playerIndex: myPlayerIndex });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onlineMode, matchChannel]);
@@ -86,31 +107,39 @@ export default function CharacterSelect() {
             setWaitingForChannel(false);
             selectCharacter(1, char);
             setMyReady(true);
-            ch.sendEvent('char_select', { charId: char.id });
+            ch.sendEvent('char_select', { charId: char.id, playerIndex: myPlayerIndex });
           }
         }, 200);
         return;
       }
       selectCharacter(1, char);
       setMyReady(true);
-      matchChannel.sendEvent('char_select', { charId: char.id });
+      matchChannel.sendEvent('char_select', { charId: char.id, playerIndex: myPlayerIndex });
     } else {
       selectCharacter(1, char);
       const others = CHARACTERS.filter(c => c.id !== char.id);
       selectCharacter(2, others[Math.floor(Math.random() * others.length)]);
     }
-  }, [onlineMode, myReady, matchChannel, selectCharacter]);
+  }, [onlineMode, myReady, myPlayerIndex, matchChannel, selectCharacter]);
 
   const handleHostStart = useCallback(() => {
-    if (!isHost || !player1Character || !opponentCharId || navigatedRef.current || !matchChannel) return;
+    if (!isHost || !player1Character || navigatedRef.current || !matchChannel) return;
+    const allPicked = numPlayers <= 2
+      ? !!opponentCharId
+      : Object.keys(pickedChars).length >= numPlayers - 1;
+    if (!allPicked) return;
     navigatedRef.current = true;
     const stageId = 'battlefield';
-    matchChannel.sendEvent('match_start', { p1CharId: player1Character.id, p2CharId: opponentCharId, stageId });
-    const p2 = CHARACTERS.find(c => c.id === opponentCharId);
-    if (p2) selectCharacter(2, p2);
+    const fighters = [{ playerIndex: 0, charId: player1Character.id }];
+    for (let i = 1; i < numPlayers; i++) {
+      fighters.push({ playerIndex: i, charId: pickedChars[i] ?? opponentCharId ?? '' });
+    }
+    matchChannel.sendEvent('match_start', { fighters, stageId });
+    const oppChar = CHARACTERS.find(c => c.id === (pickedChars[1] ?? opponentCharId));
+    if (oppChar) selectCharacter(2, oppChar);
     useGameStore.getState().selectStage(STAGES.find(s => s.id === stageId) ?? STAGES[0]);
     navigate('/play');
-  }, [isHost, player1Character, opponentCharId, matchChannel, selectCharacter, navigate]);
+  }, [isHost, player1Character, opponentCharId, pickedChars, numPlayers, matchChannel, selectCharacter, navigate]);
 
   const handleFight = useCallback(() => {
     if (player1Character) navigate('/stage');
@@ -129,9 +158,10 @@ export default function CharacterSelect() {
 
   const char = CHARACTERS[activeIndex];
   const isSelected   = !onlineMode ? player1Character !== null : myReady;
+  const allOpponentsReady = numPlayers <= 2 ? opponentReady : Object.keys(pickedChars).length >= numPlayers - 1;
   const bothReady    = !onlineMode
     ? (player1Character !== null && player2Character !== null)
-    : (myReady && opponentReady);
+    : (myReady && allOpponentsReady);
   const opponentChar = opponentCharId ? CHARACTERS.find(c => c.id === opponentCharId) : null;
 
   // ── Derive the single primary button label/action ─────────────────

@@ -523,9 +523,6 @@ export class GameLoop {
 
   // ── Hitbox Collisions ──────────────────────────────────────────────
 
-  private checkHitboxCollisions(): void {
-    this.checkHitboxCollisionsMulti();
-  }
 
   private checkHitboxCollisionsMulti(): void {
     for (let a = 0; a < this.fighters.length; a++) {
@@ -669,7 +666,7 @@ export class GameLoop {
     const second = this.fighters.reduce((b2, f, i) => {
       if (i === best) return b2;
       const b2F = this.fighters[b2];
-      if (b2F < 0 || f.stocks > b2F.stocks) return i;
+      if (f.stocks > b2F.stocks) return i;
       return b2;
     }, best === 0 ? 1 : 0);
 

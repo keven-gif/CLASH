@@ -492,43 +492,38 @@ export default function LobbyScreen() {
                     </div>
                   </motion.div>
 
-                  {/* Player ready cards — 2 side by side, NO empty slots */}
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    {/* Me */}
-                    <motion.div
-                      className={`rounded-2xl p-3 text-center border-2 transition-colors ${isReady ? 'border-accent-cyan bg-accent-cyan/10' : 'border-border-subtle bg-bg-elevated'}`}
-                      initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-                    >
-                      {(() => { const char = CHARACTERS.find(c => c.id === selectedCharacter); return (
-                        <div className="w-14 h-14 rounded-full mx-auto mb-2 overflow-hidden border-2" style={{ borderColor: char?.accentColor || '#00E5D4' }}>
-                          {char && <img src={char.image} alt="" className="w-full h-full object-cover object-top" />}
+                  {/* Player slots — up to 4 in a 2×2 grid */}
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    {Array.from({ length: totalSlots }).map((_, slotIdx) => {
+                      const isMe = slotIdx === (opponent?.myPlayerIndex ?? (opponent?.isHost ? 0 : 1));
+                      const slotReady = isMe ? isReady : readySlots.has(slotIdx);
+                      const slotName = isMe ? user?.username : (opponent?.opponents?.[slotIdx > (opponent?.myPlayerIndex ?? 0) ? slotIdx - 1 : slotIdx]?.username ?? opponent?.opponent?.username ?? '???');
+                      return (
+                        <motion.div key={slotIdx}
+                          className={`rounded-2xl p-2.5 text-center border-2 transition-colors ${slotReady ? 'border-accent-cyan bg-accent-cyan/10' : 'border-border-subtle bg-bg-elevated'}`}
+                          initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: slotIdx * 0.05 }}
+                        >
+                          <div className={`w-10 h-10 rounded-full mx-auto mb-1 border-2 flex items-center justify-center ${isMe ? 'border-accent-cyan bg-accent-cyan/20' : 'border-[#E81D2D] bg-[#E81D2D]/20'}`}>
+                            <User size={16} className={isMe ? 'text-accent-cyan' : 'text-[#E81D2D]'} />
+                          </div>
+                          <p className="font-rajdhani font-semibold text-[11px] text-text-primary truncate">{slotName}</p>
+                          <div className="flex items-center justify-center gap-1 mt-0.5">
+                            {slotIdx === 0 && <Crown size={8} className="text-[#FFB800]" />}
+                            <span className={`font-rajdhani text-[9px] uppercase font-bold ${slotReady ? 'text-accent-cyan' : 'text-text-muted'}`}>
+                              {slotReady ? '✓ READY' : 'WAITING'}
+                            </span>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                    {Array.from({ length: 4 - totalSlots }).map((_, i) => (
+                      <div key={`empty-${i}`} className="rounded-2xl p-2.5 text-center border-2 border-dashed border-border-subtle opacity-30">
+                        <div className="w-10 h-10 rounded-full mx-auto mb-1 border-2 border-border-subtle flex items-center justify-center">
+                          <User size={16} className="text-text-muted" />
                         </div>
-                      ); })()}
-                      <p className="font-rajdhani font-semibold text-[12px] text-text-primary truncate">{user?.username}</p>
-                      <div className="flex items-center justify-center gap-1 mt-1">
-                        {opponent.isHost && <Crown size={9} className="text-[#FFB800]" />}
-                        <span className={`font-rajdhani text-[10px] uppercase tracking-wider font-bold ${isReady ? 'text-accent-cyan' : 'text-text-muted'}`}>
-                          {isReady ? '✓ READY' : 'NOT READY'}
-                        </span>
+                        <p className="font-rajdhani text-[10px] text-text-muted">—</p>
                       </div>
-                    </motion.div>
-
-                    {/* Opponent */}
-                    <motion.div
-                      className={`rounded-2xl p-3 text-center border-2 transition-colors ${opponentReady ? 'border-accent-cyan bg-accent-cyan/10' : 'border-border-subtle bg-bg-elevated'}`}
-                      initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.05 }}
-                    >
-                      <div className="w-14 h-14 rounded-full mx-auto mb-2 bg-[#E81D2D]/20 border-2 border-[#E81D2D] flex items-center justify-center">
-                        <User size={22} className="text-[#E81D2D]" />
-                      </div>
-                      <p className="font-rajdhani font-semibold text-[12px] text-text-primary truncate">{opponent.opponent.username}</p>
-                      <div className="flex items-center justify-center gap-1 mt-1">
-                        {!opponent.isHost && <Crown size={9} className="text-[#FFB800]" />}
-                        <span className={`font-rajdhani text-[10px] uppercase tracking-wider font-bold ${opponentReady ? 'text-accent-cyan' : 'text-text-muted'}`}>
-                          {opponentReady ? '✓ READY' : 'NOT READY'}
-                        </span>
-                      </div>
-                    </motion.div>
+                    ))}
                   </div>
 
                   {/* Character picker */}
