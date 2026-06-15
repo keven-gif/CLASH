@@ -28,9 +28,12 @@ class SpeechRecognizer {
   }
 
   async listen(targetPhrase, timeout = CONFIG.SPEECH_TIMEOUT) {
-    // Always create a fresh instance to avoid stale state after errors or aborts
-    if (this.recognition && this.isListening) {
+    if (this.isListening) {
       try { this.recognition.abort(); } catch (e) {}
+      this.isListening = false;
+      store.setState({ isRecording: false, interimTranscript: '' });
+      // Give iOS time to release the mic before creating a fresh instance
+      await new Promise(r => setTimeout(r, 150));
     }
     this.init();
 
@@ -40,6 +43,10 @@ class SpeechRecognizer {
       let confidence = 0;
       let timeoutId;
       let hasResult = false;
+      let settled = false;
+
+      const resolve_once = (v) => { if (!settled) { settled = true; resolve(v); } };
+      const reject_once = (e) => { if (!settled) { settled = true; reject(e); } };
 
       this.recognition.onstart = () => {
         this.isListening = true;
@@ -48,7 +55,7 @@ class SpeechRecognizer {
         timeoutId = setTimeout(() => {
           if (!hasResult) {
             this.stop();
-            reject(new Error('Listening timeout - no speech detected'));
+            reject_once(new Error('Listening timeout - no speech detected'));
           }
         }, timeout);
       };
@@ -71,20 +78,22 @@ class SpeechRecognizer {
       };
 
       this.recognition.onerror = (event) => {
+        // 'aborted' fires when stop() is called normally — let onend deliver the captured result
+        // 'no-speech' means silence was detected — let onend fire and reject with a clear message
+        if (event.error === 'aborted' || event.error === 'no-speech') return;
+
         clearTimeout(timeoutId);
         this.isListening = false;
         store.setState({ isRecording: false });
 
         const errorMap = {
-          'no-speech': 'No speech detected. Please try again.',
           'audio-capture': 'Microphone not available.',
           'not-allowed': 'Microphone permission denied.',
           'network': 'Network error. Please check your connection.',
-          'aborted': 'Speech recognition aborted.',
           'language-not-supported': 'Korean speech recognition not available.'
         };
 
-        reject(new Error(errorMap[event.error] || `Speech recognition error: ${event.error}`));
+        reject_once(new Error(errorMap[event.error] || `Speech recognition error: ${event.error}`));
       };
 
       this.recognition.onend = () => {
@@ -95,21 +104,21 @@ class SpeechRecognizer {
         const text = finalTranscript || interimTranscript;
         if (text) {
           const score = this.calculateScore(targetPhrase, text, confidence);
-          resolve({
+          resolve_once({
             transcript: text,
             confidence,
             score,
             feedback: this.getFeedback(score)
           });
         } else {
-          reject(new Error('No speech captured. Please try speaking louder.'));
+          reject_once(new Error('No speech captured. Please try speaking louder.'));
         }
       };
 
       try {
         this.recognition.start();
       } catch (error) {
-        reject(new Error('Failed to start speech recognition: ' + error.message));
+        reject_once(new Error('Failed to start speech recognition: ' + error.message));
       }
     });
   }
