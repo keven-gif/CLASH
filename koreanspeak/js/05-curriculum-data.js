@@ -1,3 +1,15 @@
+// Seeded PRNG (mulberry32) — keeps curriculum stable across page loads
+function _mulberry32(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s += 0x6D2B79F5;
+    let t = s;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
 const CURRICULUM = {
   metadata: {
     title: "KoreanSpeak 90-Day Mastery",
@@ -10,8 +22,12 @@ const CURRICULUM = {
   weeks: [],
   phraseIndex: new Map(),
 
+  _rng: null,
+
   init() {
     if (this.weeks.length > 0) return this;
+    // Fixed seed keeps the generated curriculum identical across sessions
+    this._rng = _mulberry32(0x4B4F5245);
 
     this.weeks = [
       // WEEK 1: Sound Foundations
@@ -53,9 +69,9 @@ const CURRICULUM = {
         ]),
         this.createDay(5, "Numbers 11-20", "listening_speaking", 12, [
           { id: "p028", korean: "열하나", romanization: "yeolhana", english: "Eleven", category: "number", difficulty: 2 },
-          { id: "p029", korean: "엿둘", romanization: "yeoldul", english: "Twelve", category: "number", difficulty: 2 },
+          { id: "p029", korean: "열둘", romanization: "yeoldul", english: "Twelve", category: "number", difficulty: 2 },
           { id: "p030", korean: "열셋", romanization: "yeolset", english: "Thirteen", category: "number", difficulty: 2 },
-          { id: "p031", korean: "엿넷", romanization: "yeolnet", english: "Fourteen", category: "number", difficulty: 2 },
+          { id: "p031", korean: "열넷", romanization: "yeolnet", english: "Fourteen", category: "number", difficulty: 2 },
           { id: "p032", korean: "열다섯", romanization: "yeoldaseot", english: "Fifteen", category: "number", difficulty: 2 },
           { id: "p033", korean: "스물", romanization: "seumul", english: "Twenty", category: "number", difficulty: 3 }
         ]),
@@ -157,7 +173,7 @@ const CURRICULUM = {
       for (let d = 1; d <= 7; d++) {
         const dayNum = (weekNum - 1) * 7 + d;
         const phrases = [];
-        const phraseCount = 5 + Math.floor(Math.random() * 3);
+        const phraseCount = 5 + Math.floor(this._rng() * 3);
         const dayCategories = this._shuffle([...categories]).slice(0, 3);
 
         for (let p = 0; p < phraseCount; p++) {
@@ -165,7 +181,7 @@ const CURRICULUM = {
           phrases.push(this._generatePhrase(weekNum, dayNum, p, cat));
         }
 
-        days.push(this.createDay(dayNum, `Day ${dayNum}: ${this._getDayTitle(weekNum, d)}`, "speaking", 12 + Math.floor(Math.random() * 5), phrases));
+        days.push(this.createDay(dayNum, `Day ${dayNum}: ${this._getDayTitle(weekNum, d)}`, "speaking", 12 + Math.floor(this._rng() * 5), phrases));
       }
       this.weeks.push(this.createWeek(weekNum, theme.title, theme.theme, theme.focus, days));
     });
@@ -301,7 +317,7 @@ const CURRICULUM = {
         { korean: "취미가 뭐예요?", romanization: "chwigga mwoyeyo?", english: "What's your hobby?" },
         { korean: "노래해요", romanization: "noraehaeyo", english: "I sing" },
         { korean: "영화 봐요", romanization: "yeonghwa bwayo", english: "I watch movies" },
-        { korean: "울동해요", romanization: "undonghaeyo", english: "I exercise" }
+        { korean: "운동해요", romanization: "undonghaeyo", english: "I exercise" }
       ],
       question: [
         { korean: "뭐예요?", romanization: "mwoyeyo?", english: "What is it?" },
@@ -365,9 +381,10 @@ const CURRICULUM = {
   },
 
   _shuffle(array) {
+    const rand = this._rng || Math.random;
     const shuffled = [...array];
     for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(rand() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled;

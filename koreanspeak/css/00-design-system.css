@@ -82,6 +82,12 @@
   touch-action: manipulation;
 }
 
+/* L7: allow text selection on Korean/English content so users can copy to a dictionary */
+.selectable {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
 html {
   height: 100%;
   overflow: hidden;
@@ -186,6 +192,12 @@ body {
 
 .nav-item:active {
   transform: scale(0.92);
+}
+
+.nav-item:focus-visible {
+  outline: 2px solid var(--color-accent-success);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .nav-icon {
@@ -322,7 +334,12 @@ body {
   padding: var(--space-5);
   border: 1px solid rgba(255, 255, 255, 0.06);
   transition: all var(--transition-fast);
+}
+
+/* L11: opt-in glass blur — avoid applying to every card (GPU cost on low-end devices) */
+.card--glass {
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .card:active {

@@ -11,7 +11,7 @@ class GamificationSystem {
       { id: 'streak_30', name: 'Monthly Master', description: '30-day streak', icon: '📅', condition: (s) => s.streak >= 30 },
       { id: 'streak_60', name: 'Double Trouble', description: '60-day streak', icon: '🏆', condition: (s) => s.streak >= 60 },
       { id: 'streak_90', name: 'Unstoppable', description: '90-day streak', icon: '👑', condition: (s) => s.streak >= 90 },
-      { id: 'perfect_10', name: 'Perfectionist', description: '10 perfect scores in a row', icon: '💎', condition: (s) => s.sessionCorrect >= 10 },
+      { id: 'perfect_10', name: 'Perfectionist', description: 'Complete a lesson without any mistakes', icon: '💎', condition: (s) => s.flawlessLessons >= 1 },
       { id: 'night_owl', name: 'Night Owl', description: 'Study after midnight', icon: '🦉', condition: () => { const h = new Date().getHours(); return h >= 0 && h < 5; } },
       { id: 'early_bird', name: 'Early Bird', description: 'Study before 6 AM', icon: '🌅', condition: () => { const h = new Date().getHours(); return h >= 5 && h < 8; } },
       { id: 'hundred_phrases', name: 'Century', description: 'Master 100 phrases', icon: '💯', condition: (s) => s.masteredPhrases >= 100 },
@@ -85,22 +85,17 @@ class GamificationSystem {
 
   checkStreak() {
     const state = store.getState();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString();
+    // Use local calendar date (YYYY-MM-DD) so timezone differences don't shift the day boundary
+    const todayStr = new Date().toLocaleDateString('en-CA');
 
-    const lastStudy = state.lastStudyDate ? new Date(state.lastStudyDate) : null;
+    const lastStudy = state.lastStudyDate || null;
 
     if (!lastStudy) {
-      store.setState({
-        streak: 1,
-        lastStudyDate: todayStr
-      });
+      store.setState({ streak: 1, lastStudyDate: todayStr });
       return { status: 'new', streak: 1 };
     }
 
-    lastStudy.setHours(0, 0, 0, 0);
-    const diffDays = Math.floor((today - lastStudy) / (1000 * 60 * 60 * 24));
+    const diffDays = Math.round((new Date(todayStr) - new Date(lastStudy)) / (1000 * 60 * 60 * 24));
 
     if (diffDays === 0) {
       return { status: 'same-day', streak: state.streak };
@@ -188,6 +183,7 @@ class GamificationSystem {
     return newlyUnlocked;
   }
 
+  // Placeholder leaderboard — replace with real backend data
   getLeaderboard() {
     const state = store.getState();
     const mockUsers = [

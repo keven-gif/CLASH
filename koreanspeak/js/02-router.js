@@ -25,6 +25,8 @@ class Router {
 
     if (currentScreen && !options.replace) {
       this.history.push(this.currentRoute);
+      // L12: immediately block interaction on the outgoing screen during transition
+      currentScreen.style.pointerEvents = 'none';
       currentScreen.classList.remove('active');
       setTimeout(() => {
         if (currentScreen.parentNode) {
@@ -73,15 +75,12 @@ class Router {
   }
 
   updateNav(activeRoute) {
+    // L9: use CSS class instead of inline style so :focus-visible ring is not overridden
     document.querySelectorAll('.nav-item').forEach(item => {
       const screen = item.dataset.screen;
       const isActive = screen === activeRoute;
       item.classList.toggle('active', isActive);
-      if (isActive) {
-        item.style.color = 'var(--color-accent-success)';
-      } else {
-        item.style.color = '';
-      }
+      item.style.color = '';
     });
   }
 

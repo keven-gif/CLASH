@@ -207,13 +207,6 @@ class SpeechRecognizer {
     return { level: 'needs-work', message: 'Listen carefully and try once more.', color: '#ff4b4b', emoji: '🔄' };
   }
 
-  jaccardSimilarity(a, b) {
-    const setA = new Set(a.split(''));
-    const setB = new Set(b.split(''));
-    const intersection = new Set([...setA].filter(x => setB.has(x)));
-    const union = new Set([...setA, ...setB]);
-    return union.size > 0 ? intersection.size / union.size : 0;
-  }
 }
 
 const speechRecognizer = new SpeechRecognizer();

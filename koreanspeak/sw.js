@@ -1,17 +1,28 @@
-const CACHE_VERSION = 'koreanspeak-v3';
+const CACHE_VERSION = 'koreanspeak-v4';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const AUDIO_CACHE = `${CACHE_VERSION}-audio`;
-const API_CACHE = `${CACHE_VERSION}-api`;
 
 const STATIC_ASSETS = [
   './',
   './index.html',
+  './manifest.json',
   './css/00-design-system.css',
   './css/01-animations.css',
   './css/02-components.css',
   './css/03-screens.css',
   './css/04-utilities.css',
-  './manifest.json'
+  './js/00-config.js',
+  './js/01-state.js',
+  './js/02-router.js',
+  './js/03-audio-engine.js',
+  './js/04-speech-recognition.js',
+  './js/05-curriculum-data.js',
+  './js/06-srs-algorithm.js',
+  './js/07-gamification.js',
+  './js/09-ui-renderer.js',
+  './js/10-gesture-handler.js',
+  './js/11-haptic-feedback.js',
+  './js/12-ai-conversation.js',
 ];
 
 self.addEventListener('install', (event) => {
@@ -27,7 +38,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then(cacheNames =>
       Promise.all(
         cacheNames
-          .filter(name => name.startsWith('koreanspeak-') && name !== STATIC_CACHE && name !== AUDIO_CACHE && name !== API_CACHE)
+          .filter(name => name.startsWith('koreanspeak-') && name !== STATIC_CACHE && name !== AUDIO_CACHE)
           .map(name => caches.delete(name))
       )
     ).then(() => self.clients.claim())
@@ -40,11 +51,6 @@ self.addEventListener('fetch', (event) => {
 
   if (request.destination === 'audio' || request.headers.get('accept')?.includes('audio')) {
     event.respondWith(audioCacheStrategy(request));
-    return;
-  }
-
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(apiCacheStrategy(request));
     return;
   }
 
@@ -82,24 +88,6 @@ async function audioCacheStrategy(request) {
     return response;
   } catch (error) {
     return new Response('', { status: 404 });
-  }
-}
-
-async function apiCacheStrategy(request) {
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(API_CACHE);
-      cache.put(request, response.clone());
-    }
-    return response;
-  } catch (error) {
-    const cached = await caches.match(request);
-    if (cached) return cached;
-    return new Response(JSON.stringify({ error: 'Offline' }), {
-      status: 503,
-      headers: { 'Content-Type': 'application/json' }
-    });
   }
 }
 

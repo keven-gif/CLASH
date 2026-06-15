@@ -159,6 +159,7 @@ store.subscribe(() => {
         dailyQuests: state.dailyQuests,
         questProgress: state.questProgress,
         weekProgress: state.weekProgress,
+        dueCards: state.dueCards,
         conversationHistory: state.conversationHistory,
         settings: state.settings
       };

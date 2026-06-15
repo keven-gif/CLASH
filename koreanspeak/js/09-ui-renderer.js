@@ -429,7 +429,7 @@ class UIRenderer {
         <div class="week-chart">
           ${days.map((day, i) => `
             <div class="week-chart-bar">
-              <div class="week-chart-fill ${i <= todayIdx ? 'active' : ''}" style="height:${state.weekProgress?.[i] || (i < todayIdx ? 60 + Math.floor(Math.random() * 40) : i === todayIdx ? 40 : 4)}%;"></div>
+              <div class="week-chart-fill ${i <= todayIdx ? 'active' : ''}" style="height:${state.weekProgress?.[i] || (i < todayIdx ? 60 + (i * 7 % 40) : i === todayIdx ? 40 : 4)}%;"></div>
               <span class="week-chart-label">${day}</span>
             </div>
           `).join('')}
@@ -519,8 +519,8 @@ class UIRenderer {
 
   renderLesson(params = {}) {
     if (!this.isLessonActive) {
-      router.navigate('home');
-      return document.createElement('div');
+      router.navigate('home', {}, { replace: true });
+      return null;
     }
 
     const screen = this.createScreen('screen-lesson');
@@ -560,9 +560,9 @@ class UIRenderer {
           <svg class="player-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
         </button>
         <div class="lesson-hint-section">
-          <div class="english-hint" id="english-hint">
-            ${phrase.english}
-            <div style="font-size:14px;color:rgba(255,255,255,0.3);margin-top:6px;font-style:italic;">${phrase.romanization}</div>
+          <div class="english-hint selectable" id="english-hint">
+            ${escapeHtml(phrase.english)}
+            <div lang="ko" class="selectable" style="font-size:14px;color:rgba(255,255,255,0.3);margin-top:6px;font-style:italic;">${escapeHtml(phrase.romanization)}</div>
           </div>
           <button class="hint-btn" id="show-hint-btn">Tap to show meaning</button>
         </div>
@@ -579,7 +579,7 @@ class UIRenderer {
           </button>
           <div class="mic-label">Hold to speak</div>
         </div>
-        <div id="feedback-area" style="display:none;width:100%;max-width:340px;"></div>
+        <div id="feedback-area" aria-live="polite" aria-atomic="true" style="display:none;width:100%;max-width:340px;"></div>
       </div>
     `;
 
@@ -1046,12 +1046,129 @@ class UIRenderer {
       card.addEventListener('click', async () => {
         haptic.buttonPress();
         const scenarioId = card.dataset.scenario;
-        this.activeScenario = scenarioId;
-        router.navigate('conversation', { scenarioId }, { replace: true });
+        await this.renderConversationChat(screen, scenarioId);
       });
     });
 
     return screen;
+  }
+
+  async renderConversationChat(screen, scenarioId) {
+    const scenario = aiConversation.getScenarios().find(s => s.id === scenarioId);
+    if (!scenario) return;
+
+    const messages = [];
+
+    const renderMessages = () => {
+      const list = screen.querySelector('#chat-messages');
+      if (!list) return;
+      list.innerHTML = messages.map(m => `
+        <div class="chat-message ${m.role}" style="
+          display:flex;
+          flex-direction:column;
+          align-items:${m.role === 'user' ? 'flex-end' : 'flex-start'};
+          margin-bottom:12px;
+        ">
+          <div style="
+            max-width:80%;
+            padding:10px 14px;
+            border-radius:${m.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px'};
+            background:${m.role === 'user' ? 'var(--color-accent-success)' : 'rgba(255,255,255,0.08)'};
+            color:${m.role === 'user' ? '#000' : '#fff'};
+            font-size:15px;
+            line-height:1.5;
+          " lang="${m.role === 'assistant' ? 'ko' : undefined}">${escapeHtml(m.text)}</div>
+        </div>
+      `).join('');
+      list.scrollTop = list.scrollHeight;
+    };
+
+    screen.innerHTML = `
+      <div class="screen-header">
+        <button id="chat-back-btn" style="background:none;border:none;color:rgba(255,255,255,0.6);padding:4px;display:flex;align-items:center;gap:6px;font-size:15px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          Scenarios
+        </button>
+        <div style="font-weight:600;font-size:16px;">${escapeHtml(scenario.title)}</div>
+        <div style="width:80px;"></div>
+      </div>
+      <div id="chat-messages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;"></div>
+      <div style="padding:12px 16px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:12px;">
+        <button id="chat-mic-btn" class="mic-button" style="width:56px;height:56px;flex-shrink:0;" aria-label="Hold to speak">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/>
+          </svg>
+          <div class="recording-ring"></div>
+        </button>
+        <div id="chat-status" style="color:rgba(255,255,255,0.4);font-size:13px;">Hold mic to speak in Korean</div>
+      </div>
+    `;
+
+    screen.querySelector('#chat-back-btn').addEventListener('click', () => {
+      haptic.buttonPress();
+      aiConversation.reset();
+      router.navigate('conversation', {}, { replace: true });
+    });
+
+    const micBtn = screen.querySelector('#chat-mic-btn');
+    const statusEl = screen.querySelector('#chat-status');
+    let speechPromise = null;
+
+    const onPress = (e) => {
+      if (e.type === 'touchstart') e.preventDefault();
+      if (speechPromise || store.getState().isAIResponding) return;
+      micBtn.classList.add('recording');
+      haptic.heavy();
+      audioEngine.startRecording();
+      speechPromise = speechRecognizer.listen('', CONFIG.SPEECH_TIMEOUT);
+      statusEl.textContent = 'Listening…';
+    };
+
+    const onRelease = async () => {
+      if (!speechPromise) return;
+      micBtn.classList.remove('recording');
+      audioEngine.stopRecording();
+      speechRecognizer.stop();
+      const pending = speechPromise;
+      speechPromise = null;
+      statusEl.textContent = 'Processing…';
+      try {
+        const result = await pending;
+        if (result?.transcript) {
+          messages.push({ role: 'user', text: result.transcript });
+          renderMessages();
+          statusEl.textContent = 'AI is responding…';
+          const aiResult = await aiConversation.processUserSpeech(result.transcript);
+          if (aiResult?.message) {
+            messages.push({ role: 'assistant', text: aiResult.message });
+            renderMessages();
+          }
+        }
+      } catch (err) {
+        console.warn('Chat speech error:', err);
+      }
+      statusEl.textContent = 'Hold mic to speak in Korean';
+    };
+
+    micBtn.addEventListener('touchstart', onPress, { passive: false });
+    micBtn.addEventListener('touchend', onRelease);
+    micBtn.addEventListener('mousedown', onPress);
+    micBtn.addEventListener('mouseup', onRelease);
+
+    // Start the conversation
+    statusEl.textContent = 'Starting conversation…';
+    try {
+      const opening = await aiConversation.startConversation(scenarioId);
+      if (opening?.message) {
+        messages.push({ role: 'assistant', text: opening.message });
+        renderMessages();
+      }
+    } catch (err) {
+      console.warn('Failed to start conversation:', err);
+    }
+    statusEl.textContent = 'Hold mic to speak in Korean';
   }
 
   // ==================== PROFILE SCREEN ====================
@@ -1248,7 +1365,8 @@ class UIRenderer {
     overlay.querySelector('#reset-progress-btn').addEventListener('click', () => {
       haptic.heavy();
       if (confirm('Are you sure? This will delete ALL your progress permanently.')) {
-        localStorage.clear();
+        ['koreanspeak_state', 'koreanspeak_srs_cards', 'koreanspeak_onboarded', 'lastHeartLost']
+          .forEach(k => localStorage.removeItem(k));
         store.reset();
         location.reload();
       }

@@ -14,6 +14,7 @@ class AudioEngine {
     this.animationId = null;
     this.koreanVoice = null;
     this._voiceInitPromise = null;
+    this.mediaStreamSource = null;
   }
 
   async init() {
@@ -39,11 +40,17 @@ class AudioEngine {
     if (this._voiceInitPromise) return this._voiceInitPromise;
 
     this._voiceInitPromise = new Promise((resolve) => {
+      let fallbackTimer;
+
       const findKoreanVoice = () => {
         const voices = window.speechSynthesis.getVoices();
+        if (voices.length === 0) return;
         this.koreanVoice = voices.find(v =>
           v.lang.includes('ko') || v.lang.includes('Korean')
         ) || voices.find(v => v.lang.includes('ko'));
+        // H5: unregister handler and clear fallback timer once voices are found
+        window.speechSynthesis.onvoiceschanged = null;
+        clearTimeout(fallbackTimer);
         resolve(this.koreanVoice);
       };
 
@@ -51,7 +58,7 @@ class AudioEngine {
         findKoreanVoice();
       } else {
         window.speechSynthesis.onvoiceschanged = findKoreanVoice;
-        setTimeout(findKoreanVoice, 2000);
+        fallbackTimer = setTimeout(findKoreanVoice, 2000);
       }
     });
 
@@ -158,8 +165,9 @@ class AudioEngine {
       store.setState({ isRecording: true });
 
       if (this.audioContext && this.analyser) {
-        const source = this.audioContext.createMediaStreamSource(stream);
-        source.connect(this.analyser);
+        // H4: store source so it can be disconnected when recording stops
+        this.mediaStreamSource = this.audioContext.createMediaStreamSource(stream);
+        this.mediaStreamSource.connect(this.analyser);
       }
 
       this._startVisualization();
@@ -176,6 +184,11 @@ class AudioEngine {
         this.mediaRecorder.stop();
       } catch (e) {
         console.warn('Error stopping recorder:', e);
+      }
+      // H4: disconnect mic stream source to release microphone indicator
+      if (this.mediaStreamSource) {
+        this.mediaStreamSource.disconnect();
+        this.mediaStreamSource = null;
       }
       this.isRecording = false;
       store.setState({ isRecording: false });
@@ -203,6 +216,8 @@ class AudioEngine {
 
   _startVisualization() {
     if (!this.analyser) return;
+    // M6: cancel any existing loop before starting a new one
+    this._stopVisualization();
 
     const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
 
@@ -278,6 +293,10 @@ class AudioEngine {
   destroy() {
     this._stopVisualization();
     this.cancelSpeech();
+    if (this.mediaStreamSource) {
+      this.mediaStreamSource.disconnect();
+      this.mediaStreamSource = null;
+    }
     if (this.audioContext) {
       this.audioContext.close();
       this.audioContext = null;
