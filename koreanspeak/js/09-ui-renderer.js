@@ -10,6 +10,13 @@ import { haptic } from './11-haptic-feedback.js';
 import { aiConversation } from './12-ai-conversation.js';
 import { CONFIG } from './00-config.js';
 
+// XSS-safe HTML escaper for user-supplied text
+const escapeHtml = s => String(s)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;');
+
 class UIRenderer {
   constructor() {
     this.toastContainer = null;
@@ -20,6 +27,8 @@ class UIRenderer {
     this.currentPhraseIdx = 0;
     this.sessionStats = { correct: 0, total: 0, xp: 0, combo: 0, startTime: null };
     this.waveformRAF = null;
+    // H7: track first attempt per phrase to avoid double SRS updates on retry
+    this.phraseAttempted = new Set();
   }
 
   init() {
@@ -496,6 +505,8 @@ class UIRenderer {
     this.lessonPhrases = lesson.phrases || [];
     this.currentPhraseIdx = 0;
     this.sessionStats = { correct: 0, total: 0, xp: 0, combo: 0, startTime: Date.now() };
+    // H7: reset per-lesson phrase-attempt tracking
+    this.phraseAttempted = new Set();
     store.setState({
       sessionXP: 0,
       sessionCorrect: 0,
@@ -596,6 +607,8 @@ class UIRenderer {
       }
     };
 
+    // M5: cancel any in-progress speech before scheduling autoPlay
+    audioEngine.cancelSpeech();
     setTimeout(autoPlay, 400);
 
     playBtn.addEventListener('click', async () => {
@@ -681,12 +694,19 @@ class UIRenderer {
     feedbackArea.innerHTML = '<div style="text-align:center;padding:20px;"><div class="typing-indicator" style="display:inline-flex;"><span></span><span></span><span></span></div><div style="color:rgba(255,255,255,0.4);font-size:13px;margin-top:12px;">Analyzing your pronunciation...</div></div>';
     micSection.style.display = 'none';
 
+    // C2: cancel any active speech synthesis before awaiting the result
+    audioEngine.cancelSpeech();
+
     try {
       const result = await (pendingResult ?? speechRecognizer.listen(phrase.korean, CONFIG.SPEECH_TIMEOUT));
+      // C2: if the lesson screen was navigated away from, discard the result
+      if (!document.contains(screen)) return;
       this.showFeedback(screen, result, phrase);
     } catch (error) {
-      gamification.loseHeart();
-      haptic.error();
+      // C2: guard stale screen here too
+      if (!document.contains(screen)) return;
+      // C1: removed duplicate gamification.loseHeart() and haptic.error() —
+      //     showFeedback handles heart loss when score === 0
       this.showFeedback(screen, {
         score: 0,
         feedback: { level: 'error', message: error.message || 'Could not hear you. Try again!', color: '#ff4b4b', emoji: '❌' },
@@ -735,32 +755,45 @@ class UIRenderer {
       haptic.success();
     }
 
-    const cards = srs.loadCards();
-    const existingIdx = cards.findIndex(c => c.phraseId === phrase.id);
-    const quality = result.score >= 90 ? 5 : result.score >= 70 ? 4 : result.score >= 50 ? 3 : result.score >= 30 ? 2 : 1;
-    if (existingIdx >= 0) {
-      cards[existingIdx] = srs.reviewCard(cards[existingIdx], quality);
-    } else {
-      cards.push(srs.createCard(phrase.id));
+    // H7: only update SRS on the first attempt, not on retries
+    if (!this.phraseAttempted.has(phrase.id)) {
+      this.phraseAttempted.add(phrase.id);
+      const cards = srs.loadCards();
+      const existingIdx = cards.findIndex(c => c.phraseId === phrase.id);
+      const quality = result.score >= 90 ? 5 : result.score >= 70 ? 4 : result.score >= 50 ? 3 : result.score >= 30 ? 2 : 1;
+      if (existingIdx >= 0) {
+        cards[existingIdx] = srs.reviewCard(cards[existingIdx], quality);
+      } else {
+        cards.push(srs.createCard(phrase.id));
+      }
+      srs.saveCards(cards);
     }
-    srs.saveCards(cards);
 
-    feedbackArea.innerHTML = `
-      <div class="feedback-panel ${isSuccess ? 'success' : result.score >= 40 ? 'warning' : 'error'}" style="margin:0 auto;">
-        <div class="feedback-score" style="color:${result.feedback.color};">${isSuccess ? result.feedback.emoji : ''} ${result.score}%</div>
-        <div class="feedback-message">${result.feedback.message}</div>
-        ${result.transcript ? `<div style="font-size:13px;color:rgba(255,255,255,0.4);margin-top:4px;">You said: "${result.transcript}"</div>` : ''}
-        <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-          <span style="color:var(--color-accent-xp);font-weight:700;font-size:18px;">+${xpEarned} XP</span>
-          ${this.sessionStats.combo >= 3 ? `<span style="background:rgba(255,200,0,0.15);color:var(--color-accent-xp);padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;">${this.sessionStats.combo}x combo</span>` : ''}
-        </div>
-        <button class="btn ${isSuccess ? 'btn-primary' : 'btn-secondary'}" id="next-phrase-btn" style="width:100%;margin-top:8px;">
-          ${isSuccess ? 'Continue' : 'Try Again'}
-        </button>
+    // M4: build feedback HTML safely to prevent transcript XSS
+    const panel = document.createElement('div');
+    panel.className = `feedback-panel ${isSuccess ? 'success' : result.score >= 40 ? 'warning' : 'error'}`;
+    panel.style.margin = '0 auto';
+    panel.innerHTML = `
+      <div class="feedback-score" style="color:${result.feedback.color};">${isSuccess ? result.feedback.emoji : ''} ${result.score}%</div>
+      <div class="feedback-message">${result.feedback.message}</div>
+      ${result.transcript ? `<div class="feedback-transcript" style="font-size:13px;color:rgba(255,255,255,0.4);margin-top:4px;"></div>` : ''}
+      <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+        <span style="color:var(--color-accent-xp);font-weight:700;font-size:18px;">+${xpEarned} XP</span>
+        ${this.sessionStats.combo >= 3 ? `<span style="background:rgba(255,200,0,0.15);color:var(--color-accent-xp);padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;">${this.sessionStats.combo}x combo</span>` : ''}
       </div>
+      <button class="btn ${isSuccess ? 'btn-primary' : 'btn-secondary'}" id="next-phrase-btn" style="width:100%;margin-top:8px;">
+        ${isSuccess ? 'Continue' : 'Try Again'}
+      </button>
     `;
+    // Set transcript via textContent to prevent XSS
+    if (result.transcript) {
+      const transcriptEl = panel.querySelector('.feedback-transcript');
+      if (transcriptEl) transcriptEl.textContent = `You said: "${result.transcript}"`;
+    }
+    feedbackArea.innerHTML = '';
+    feedbackArea.appendChild(panel);
 
-    screen.querySelector('#next-phrase-btn').addEventListener('click', () => {
+    feedbackArea.querySelector('#next-phrase-btn').addEventListener('click', () => {
       haptic.buttonPress();
       if (isSuccess) {
         this.currentPhraseIdx++;
@@ -856,6 +889,14 @@ class UIRenderer {
 
     overlay.querySelector('#confirm-exit').addEventListener('click', () => {
       haptic.buttonPress();
+      // H3: commit any session XP earned before exiting
+      if (this.sessionStats.xp > 0) {
+        const state = store.getState();
+        gamification.addXP
+          ? gamification.addXP(this.sessionStats.xp)
+          : store.setState({ totalXP: state.totalXP + this.sessionStats.xp });
+        this.sessionStats = { correct: 0, total: 0, xp: 0, combo: 0, startTime: null };
+      }
       gamification.loseHeart();
       this.isLessonActive = false;
       this.currentPhraseIdx = 0;
@@ -953,9 +994,11 @@ class UIRenderer {
 
         const earnedXP = quality >= 4 ? CONFIG.REVIEW_XP_BASE : quality >= 3 ? 2 : 1;
         const state = store.getState();
+        // H8: track reviewsToday so review_master achievement can unlock
         store.setState({
           totalXP: state.totalXP + earnedXP,
-          masteredPhrases: (state.masteredPhrases || 0) + (quality >= 3 ? 1 : 0)
+          masteredPhrases: (state.masteredPhrases || 0) + (quality >= 3 ? 1 : 0),
+          reviewsToday: (state.reviewsToday || 0) + 1
         });
 
         screen.style.animation = 'slide-left 0.25s ease forwards';
