@@ -444,10 +444,10 @@ class UIRenderer {
     const state = store.getState();
     const weeks = CURRICULUM.getAllWeeks();
 
-    // Collect all unlocked phrases for the Words tab
+    // Collect all phrases across the entire curriculum for the Words tab
     const allPhrases = [];
     const seenIds = new Set();
-    for (let d = 1; d <= state.currentDay; d++) {
+    for (let d = 1; d <= CONFIG.CURRICULUM_DAYS; d++) {
       const lesson = CURRICULUM.getLesson(d);
       if (lesson?.phrases) {
         for (const p of lesson.phrases) {
@@ -461,7 +461,7 @@ class UIRenderer {
       ? `<div class="empty-state" style="margin-top:48px;">
            <div class="empty-state-icon">📖</div>
            <div class="empty-state-title">No Words Yet</div>
-           <div class="empty-state-message">Complete your first lesson to unlock words to practice.</div>
+           <div class="empty-state-message">No words found in the curriculum.</div>
          </div>`
       : `<div style="display:flex;gap:8px;overflow-x:auto;padding:12px 16px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
            ${categories.map(cat => `
@@ -516,11 +516,11 @@ class UIRenderer {
                 const dayNum = (wi * 7) + di + 1;
                 const isCompleted = dayNum < state.currentDay;
                 const isCurrent = dayNum === state.currentDay;
-                const isLocked = dayNum > state.currentDay;
+                const isFuture = dayNum > state.currentDay;
                 return `
-                  <div class="lesson-node ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''} ${isLocked ? 'locked' : ''}" data-day="${dayNum}" data-lesson="${day.id}">
+                  <div class="lesson-node ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}" data-day="${dayNum}" data-lesson="${day.id}">
                     <div class="lesson-node-icon" style="background:${isCompleted ? 'rgba(88,204,2,0.15)' : isCurrent ? 'rgba(88,204,2,0.1)' : 'rgba(255,255,255,0.04)'};">
-                      ${isCompleted ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#58cc02" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : isCurrent ? '<span style="font-size:18px;">🎯</span>' : '<span style="font-size:18px;opacity:0.4;">🔒</span>'}
+                      ${isCompleted ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#58cc02" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : isCurrent ? '<span style="font-size:18px;">🎯</span>' : '<span style="font-size:18px;opacity:0.4;">📖</span>'}
                     </div>
                     <div class="lesson-node-info">
                       <div class="lesson-node-title" style="${isCurrent ? 'color:var(--color-accent-success);' : ''}">${day.title}</div>
@@ -562,7 +562,7 @@ class UIRenderer {
     tabWords.addEventListener('click', () => switchTab('words'));
 
     // ---- Curriculum node clicks ----
-    screen.querySelectorAll('.lesson-node:not(.locked)').forEach(node => {
+    screen.querySelectorAll('.lesson-node').forEach(node => {
       node.addEventListener('click', () => {
         haptic.tap();
         const lesson = CURRICULUM.getLesson(parseInt(node.dataset.day));
