@@ -12,6 +12,7 @@ import { getStageData, getPlatforms, getSpawnPoints } from '@/game/Stage';
 import { getDamageColor } from '@/game/Fighter';
 import type { FighterState, Platform } from '@/game/types';
 import { Pause, Swords, Shield, Hand, ChevronUp } from 'lucide-react';
+import { audioManager } from '@/audio/AudioManager';
 
 export default function Gameplay() {
   const navigate = useNavigate();
@@ -61,6 +62,12 @@ export default function Gameplay() {
   // Keep stock refs in sync with state (H8 fix)
   useEffect(() => { p1StocksRef.current = p1Stocks; }, [p1Stocks]);
   useEffect(() => { p2StocksRef.current = p2Stocks; }, [p2Stocks]);
+
+  // Start gameplay music
+  useEffect(() => {
+    audioManager.playMusic('music-gameplay');
+    return () => { audioManager.stopMusic(500); };
+  }, []);
 
   // ── Refs ───────────────────────────────────────────────────────────
   const gameLoopRef = useRef<GameLoop | null>(null);
