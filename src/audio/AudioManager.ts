@@ -31,8 +31,31 @@ class AudioManager {
   private currentMusic: HTMLAudioElement | null = null;
   private currentMusicName: MusicName | null = null;
   private musicFadeInterval: number | null = null;
+  private unlocked = false;
+  private pendingMusic: MusicName | null = null;
 
-  private constructor() {}
+  private constructor() {
+    // Unlock audio on first user interaction
+    const unlock = () => {
+      if (this.unlocked) return;
+      this.unlocked = true;
+      // Play and immediately pause a silent buffer to unlock audio context
+      const silent = new Audio();
+      silent.play().catch(() => {});
+      // If music was queued before unlock, play it now
+      if (this.pendingMusic) {
+        const name = this.pendingMusic;
+        this.pendingMusic = null;
+        this.playMusic(name);
+      }
+      document.removeEventListener('touchstart', unlock, true);
+      document.removeEventListener('mousedown', unlock, true);
+      document.removeEventListener('keydown', unlock, true);
+    };
+    document.addEventListener('touchstart', unlock, true);
+    document.addEventListener('mousedown', unlock, true);
+    document.addEventListener('keydown', unlock, true);
+  }
 
   static getInstance(): AudioManager {
     if (!AudioManager.instance) {
@@ -84,6 +107,12 @@ class AudioManager {
 
   playMusic(name: MusicName): void {
     if (this.musicVolume <= 0) return;
+
+    // Queue until user has interacted (browser autoplay policy)
+    if (!this.unlocked) {
+      this.pendingMusic = name;
+      return;
+    }
 
     // Resolve short aliases to full names
     const aliasMap: Record<string, MusicName> = {
