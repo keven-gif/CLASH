@@ -77,9 +77,12 @@ class AudioEngine {
     return this._voiceInitPromise;
   }
 
-  async speakKorean(text, speed = null) {
-    await this.init();
-    await this._voiceInitPromise;
+  speakKorean(text, speed = null) {
+    // Kick off AudioContext and voice init in the background — do NOT await them
+    // before calling speak(), because iOS requires speechSynthesis.speak() to be
+    // called synchronously within a user gesture. Any await before speak() breaks
+    // that requirement and iOS silently drops the request.
+    this.init().catch(() => {});
 
     return new Promise((resolve, reject) => {
       window.speechSynthesis.cancel();
@@ -90,6 +93,7 @@ class AudioEngine {
       utterance.pitch = 1.1;
       utterance.volume = 1.0;
 
+      // Use voice if already resolved; skip if still loading (iOS will pick ko-KR from lang)
       if (this.koreanVoice) {
         utterance.voice = this.koreanVoice;
       }

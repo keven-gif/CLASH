@@ -792,9 +792,10 @@ class UIRenderer {
       }
     };
 
-    // M5: cancel any in-progress speech before scheduling autoPlay
+    // Auto-play via setTimeout is blocked by iOS (not a user gesture).
+    // Let the user tap the play button to hear the pronunciation.
     audioEngine.cancelSpeech();
-    setTimeout(autoPlay, 400);
+    playBtn.setAttribute('title', 'Tap to hear pronunciation');
 
     playBtn.addEventListener('click', async () => {
       haptic.tap();
@@ -1181,7 +1182,7 @@ class UIRenderer {
       </div>
     `;
 
-    setTimeout(() => audioEngine.speakKorean(phrase.korean), 300);
+    // No auto-play — iOS blocks TTS from setTimeout (not a user gesture).
 
     screen.querySelector('#review-play-btn').addEventListener('click', () => {
       haptic.tap();
