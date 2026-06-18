@@ -80,15 +80,16 @@ export const api = {
   },
 
   // ─── Multi-player room matchmaking ───────────────────────────────────
-  async findOpponents(myId: string, max: number = 3): Promise<any[]> {
+  async findOpponents(myId: string, max: number = 3, exclude: string[] = []): Promise<any[]> {
     const { data } = await supabase
       .from('match_queue')
       .select('*')
       .eq('status', 'waiting')
       .neq('player_id', myId)
       .order('created_at', { ascending: true })
-      .limit(max);
-    return data ?? [];
+      .limit(max + exclude.length); // fetch extra to filter
+    const rows = (data ?? []) as any[];
+    return rows.filter(r => !exclude.includes(r.player_id)).slice(0, max);
   },
 
   async markMatchedRoom(myId: string, guestIds: string[]): Promise<void> {
