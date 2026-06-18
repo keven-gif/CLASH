@@ -596,6 +596,28 @@ export default function LobbyScreen() {
                     CANCEL
                   </motion.button>
                 )}
+                {/* Host START NOW button — visible once host is ready and ≥1 guest ready */}
+                {opponent && opponent.isHost && isReady && readySlots.size >= 1 ? (
+                  <motion.button
+                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                    onClick={() => {
+                      if (matchFoundRef.current) return;
+                      const ch = useGameStore.getState().matchChannel;
+                      if (!ch) return;
+                      ch.sendEvent('lobby_go', {});
+                      matchFoundRef.current = true;
+                      setOnlineMode(true);
+                      setIsHost(true);
+                      setMatchOpponent(opponent.opponent);
+                      navigate('/select');
+                    }}
+                    className="w-full h-12 mt-2 rounded-2xl bg-[#FFB800] text-bg-dark font-rajdhani font-bold text-[16px] uppercase tracking-wider"
+                    style={{ boxShadow: '0 4px 20px rgba(255,184,0,0.4)' }}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    START NOW ({readySlots.size + 1}/{totalSlots})
+                  </motion.button>
+                ) : null}
               </div>
             </motion.div>
           )}
