@@ -25,6 +25,9 @@ jobs:
       - name: Build Vite App
         run: npm run build
 
+      - name: Copy KoreanSpeak app into dist
+        run: cp -r koreanspeak dist/koreanspeak
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
