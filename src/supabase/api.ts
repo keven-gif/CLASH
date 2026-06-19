@@ -43,7 +43,8 @@ export const api = {
     return supabase.from('match_queue').upsert({
       player_id: playerId, username, rank,
       status: 'waiting', matched_with: null,
-      webrtc_offer: null, webrtc_answer: null,
+      webrtc_offer: new Date().toISOString(), // initial heartbeat
+      webrtc_answer: null,
     }, { onConflict: 'player_id' });
   },
 
@@ -81,15 +82,26 @@ export const api = {
 
   // ─── Multi-player room matchmaking ───────────────────────────────────
   async findOpponents(myId: string, max: number = 3, exclude: string[] = []): Promise<any[]> {
+    // Only return players who sent a heartbeat in the last 20 seconds
+    const cutoff = new Date(Date.now() - 20_000).toISOString();
     const { data } = await supabase
       .from('match_queue')
       .select('*')
       .eq('status', 'waiting')
       .neq('player_id', myId)
+      .gte('webrtc_offer', cutoff)  // heartbeat filter
       .order('created_at', { ascending: true })
-      .limit(max + exclude.length); // fetch extra to filter
+      .limit(max + exclude.length);
     const rows = (data ?? []) as any[];
     return rows.filter(r => !exclude.includes(r.player_id)).slice(0, max);
+  },
+
+  // Heartbeat: call every 5s while searching to prove the player is still active
+  async heartbeat(playerId: string): Promise<void> {
+    await supabase
+      .from('match_queue')
+      .update({ webrtc_offer: new Date().toISOString() })
+      .eq('player_id', playerId);
   },
 
   async markMatchedRoom(myId: string, guestIds: string[]): Promise<void> {

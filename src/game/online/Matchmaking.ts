@@ -20,6 +20,7 @@ export class MatchmakingManager {
   private onStateCb: ((s: MatchmakingState) => void) | null = null;
   private onMatch: ((m: MatchFound) => void) | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private searchStart = 0;
   private done = false;
 
@@ -33,6 +34,9 @@ export class MatchmakingManager {
     this.searchStart = Date.now();
     this.setState('searching');
     await api.joinQueue(profile.id, profile.username, profile.rank);
+    // Send an immediate heartbeat so we're visible to other hosts right away
+    await api.heartbeat(profile.id);
+    this.heartbeatTimer = setInterval(() => api.heartbeat(profile.id), 5000);
     this.pollTimer = setInterval(() => this.poll(), 2000);
     this.poll();
   }
@@ -114,6 +118,7 @@ export class MatchmakingManager {
 
   private clearPoll(): void {
     if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+    if (this.heartbeatTimer) { clearInterval(this.heartbeatTimer); this.heartbeatTimer = null; }
   }
 
   private setState(s: MatchmakingState): void { this.state = s; this.onStateCb?.(s); }
