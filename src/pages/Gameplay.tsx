@@ -33,6 +33,7 @@ export default function Gameplay() {
   const isHost = useGameStore((s) => s.isHost);
   const myPlayerIndex = useGameStore((s) => s.myPlayerIndex);
   const roomPlayers = useGameStore((s) => s.roomPlayers);
+  const fighterCharIds = useGameStore((s) => s.fighterCharIds);
 
   const storeUser = useGameStore((s) => s.user);
   const matchChannel = useGameStore((s) => s.matchChannel);
@@ -163,7 +164,8 @@ export default function Gameplay() {
     // Extra fighters for 3-4 player online matches
     const extraFighters = numOnlinePlayers > 2
       ? Array.from({ length: numOnlinePlayers - 2 }, (_, i) => {
-          const fighter = createFighter(p1Character.id, allSpawns[2 + i] ?? defaultSpawns[2 + i]);
+          const charId = fighterCharIds[2 + i] || p1Character.id;
+          const fighter = createFighter(charId, allSpawns[2 + i] ?? defaultSpawns[2 + i]);
           fighter.stocks = stockCount;
           fighter.direction = i % 2 === 0 ? 1 : -1;
           return fighter;

@@ -39,6 +39,7 @@ export default function CharacterSelect() {
   const matchChannel     = useGameStore(s => s.matchChannel);
   const myPlayerIndex    = useGameStore(s => s.myPlayerIndex);
   const roomPlayers      = useGameStore(s => s.roomPlayers);
+  const setFighterCharIds = useGameStore(s => s.setFighterCharIds);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
@@ -81,8 +82,12 @@ export default function CharacterSelect() {
       if (navigatedRef.current) return;
       navigatedRef.current = true;
       if (data.fighters) {
-        // Multi-player format
-        const myEntry = data.fighters.find(f => f.playerIndex === myPlayerIndex);
+        // Multi-player: store all fighter char IDs indexed by playerIndex
+        const charIds: string[] = [];
+        data.fighters.forEach(f => { charIds[f.playerIndex] = f.charId; });
+        setFighterCharIds(charIds);
+        // Also populate store slots 1 & 2 for HUD compat
+        const myEntry  = data.fighters.find(f => f.playerIndex === myPlayerIndex);
         const oppEntry = data.fighters.find(f => f.playerIndex !== myPlayerIndex);
         const myChar  = CHARACTERS.find(c => c.id === myEntry?.charId);
         const oppChar = CHARACTERS.find(c => c.id === oppEntry?.charId);
@@ -146,6 +151,9 @@ export default function CharacterSelect() {
       fighters.push({ playerIndex: i, charId: pickedChars[i] ?? opponentCharId ?? '' });
     }
     matchChannel.sendEvent('match_start', { fighters, stageId });
+    const charIds: string[] = [];
+    fighters.forEach(f => { charIds[f.playerIndex] = f.charId; });
+    setFighterCharIds(charIds);
     const oppChar = CHARACTERS.find(c => c.id === (pickedChars[1] ?? opponentCharId));
     if (oppChar) selectCharacter(2, oppChar);
     useGameStore.getState().selectStage(STAGES.find(s => s.id === stageId) ?? STAGES[0]);
