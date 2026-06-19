@@ -76,7 +76,6 @@ export class MatchmakingManager {
     // ── Host path: accumulate opponents over time ─────────────────────
     const needed = (MAX_ROOM_SIZE - 1) - this.collectedGuestIds.length;
     if (needed > 0) {
-      // Find waiting players we haven't collected yet
       const rows = await api.findOpponents(this.myProfile.id, needed, this.collectedGuestIds);
       for (const row of rows) {
         if (!this.collectedGuestIds.includes(row.player_id)) {
@@ -85,19 +84,21 @@ export class MatchmakingManager {
       }
     }
 
+    if (this.collectedGuestIds.length === 0) return; // still no one, keep waiting
+
+    // Write our current guest list immediately on every poll to:
+    // (a) prevent another host from stealing these guests (their findOpponents returns status='matched' rows filtered out)
+    // (b) let guests discover the room via findRoomForMe as soon as they're added
+    await api.markMatchedRoom(this.myProfile.id, this.collectedGuestIds);
+
     const elapsed = Date.now() - this.searchStart;
     const roomFull = this.collectedGuestIds.length >= MAX_ROOM_SIZE - 1;
     const timedOut = elapsed >= ACCUMULATION_MS;
 
-    if (this.collectedGuestIds.length === 0) return; // still no one, keep waiting
-
     if (roomFull || timedOut) {
-      // Room is ready — mark ourselves as host and fire
       this.done = true;
       this.clearPoll();
       this.setState('found');
-
-      await api.markMatchedRoom(this.myProfile.id, this.collectedGuestIds);
 
       const guestProfiles = (await Promise.all(
         this.collectedGuestIds.map(id => api.getProfile(id))
@@ -113,7 +114,7 @@ export class MatchmakingManager {
         isHost: true,
       });
     }
-    // else: keep polling every 2s until room fills or timeout
+    // else: keep polling every 2s — room still filling up
   }
 
   private clearPoll(): void {

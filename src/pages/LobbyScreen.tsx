@@ -251,9 +251,15 @@ export default function LobbyScreen() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (cdTimerRef.current) clearInterval(cdTimerRef.current);
-      // Don't delete match_queue rows if a match was found — CharacterSelect
-      // needs those rows to sync character selections between players
-      if (!matchFoundRef.current) mmRef.current?.destroy();
+      if (!matchFoundRef.current) {
+        mmRef.current?.destroy();
+        // Disconnect and clear any channel created during room setup
+        const ch = useGameStore.getState().matchChannel;
+        if (ch) {
+          ch.disconnect();
+          useGameStore.getState().setMatchChannel(null);
+        }
+      }
     };
   }, []);
 
