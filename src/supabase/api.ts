@@ -112,13 +112,21 @@ export const api = {
   },
 
   async findRoomForMe(myId: string): Promise<any | null> {
+    // Use comma delimiters to avoid substring collisions (e.g. abc123 matching abc1234)
+    // Also check that the host row is recent (host joined in last 2 minutes)
+    const cutoff = new Date(Date.now() - 120_000).toISOString();
     const { data } = await supabase
       .from('match_queue')
       .select('*')
       .eq('status', 'matched')
-      .ilike('matched_with', `%${myId}%`)
+      .or(`matched_with.ilike.${myId},%,matched_with.ilike.%,${myId},%,matched_with.ilike.%,${myId},matched_with.eq.${myId}`)
+      .gte('created_at', cutoff)
       .limit(1);
-    return data?.[0] ?? null;
+    // Double-check match is exact — guard against Supabase ilike false positives
+    const row = data?.[0] ?? null;
+    if (!row) return null;
+    const ids = (row.matched_with as string ?? '').split(',');
+    return ids.includes(myId) ? row : null;
   },
 
   async submitAnswer(playerId: string, answer: string) {

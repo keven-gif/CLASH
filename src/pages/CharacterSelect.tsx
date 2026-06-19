@@ -53,6 +53,17 @@ export default function CharacterSelect() {
 
   useEffect(() => { audioManager.playMusic('music-title'); }, []);
 
+  // Cleanup: disconnect channel if user navigates away before match starts
+  useEffect(() => {
+    return () => {
+      if (!navigatedRef.current && onlineMode) {
+        matchChannel?.disconnect();
+        useGameStore.getState().setMatchChannel(null);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!onlineMode || !matchChannel) return;
 
