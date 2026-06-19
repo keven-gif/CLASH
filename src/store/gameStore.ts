@@ -185,6 +185,9 @@ interface GameState {
   setRoomPlayers: (players: Profile[]) => void;
   myPlayerIndex: number;
   setMyPlayerIndex: (index: number) => void;
+  // All fighter character assignments for online multi-player [index → charId]
+  fighterCharIds: string[];
+  setFighterCharIds: (charIds: string[]) => void;
 
   // Actions
   selectCharacter: (player: 1 | 2, character: Character) => void;
@@ -246,6 +249,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   setRoomPlayers: (players) => set({ roomPlayers: players }),
   myPlayerIndex: 0,
   setMyPlayerIndex: (index) => set({ myPlayerIndex: index }),
+  fighterCharIds: [],
+  setFighterCharIds: (charIds) => set({ fighterCharIds: charIds }),
 
   // Actions
   setGameState: (state) => set({ gameState: state }),
@@ -365,6 +370,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       matchChannel: null,
       roomPlayers: [],
       myPlayerIndex: 0,
+      fighterCharIds: [],
     });
   },
 

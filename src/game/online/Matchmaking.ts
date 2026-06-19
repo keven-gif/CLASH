@@ -4,14 +4,14 @@ import { api } from '@/supabase/api';
 export type MatchmakingState = 'idle' | 'searching' | 'found' | 'connecting' | 'ready' | 'failed';
 
 export interface MatchFound {
-  opponents: Profile[];    // 1–3 opponents (total players = opponents.length + 1)
+  opponents: Profile[];    // 1–3 opponents
   myPlayerIndex: number;   // 0 = host, 1–3 = guests
-  roomId: string;          // host's player_id, used as channel name
+  roomId: string;          // host's player_id
   isHost: boolean;
   opponent: Profile;       // first opponent (legacy compat)
 }
 
-const ACCUMULATION_MS = 30_000; // wait up to 30s to fill room
+const ACCUMULATION_MS = 30_000; // wait up to 30s to fill room to 4
 const MAX_ROOM_SIZE = 4;
 
 export class MatchmakingManager {
@@ -24,17 +24,12 @@ export class MatchmakingManager {
   private searchStart = 0;
   private done = false;
 
-  // Accumulated guest IDs while this player is acting as host
-  private collectedGuestIds: string[] = [];
-
   async startSearch(profile: Profile): Promise<void> {
     this.myProfile = profile;
     this.done = false;
-    this.collectedGuestIds = [];
     this.searchStart = Date.now();
     this.setState('searching');
     await api.joinQueue(profile.id, profile.username, profile.rank);
-    // Send an immediate heartbeat so we're visible to other hosts right away
     await api.heartbeat(profile.id);
     this.heartbeatTimer = setInterval(() => api.heartbeat(profile.id), 5000);
     this.pollTimer = setInterval(() => this.poll(), 2000);
@@ -43,9 +38,10 @@ export class MatchmakingManager {
 
   private async poll(): Promise<void> {
     if (this.state !== 'searching' || this.done || !this.myProfile) return;
+    const myId = this.myProfile.id;
 
-    // ── Guest path: check if a host already picked me up ─────────────
-    const hostRow = await api.findRoomForMe(this.myProfile.id);
+    // ── Step 1: Check if I'm already in a room ───────────────────────
+    const hostRow = await api.findRoomForMe(myId);
     if (hostRow) {
       this.done = true;
       this.clearPoll();
@@ -54,13 +50,11 @@ export class MatchmakingManager {
       const hostProfile = await api.getProfile(hostRow.player_id);
       if (!hostProfile) { this.setState('failed'); return; }
 
-      // My index is my position in the comma-separated guest list + 1 (host is 0)
-      const guestIds: string[] = (hostRow.matched_with as string).split(',').filter(Boolean);
-      const myIndexInGuests = guestIds.indexOf(this.myProfile.id);
+      const guestIds = (hostRow.matched_with as string ?? '').split(',').filter(Boolean);
+      const myIndexInGuests = guestIds.indexOf(myId);
       const myPlayerIndex = myIndexInGuests >= 0 ? myIndexInGuests + 1 : 1;
 
-      // Fetch profiles of other guests in the same room
-      const otherGuestIds = guestIds.filter(id => id !== this.myProfile!.id);
+      const otherGuestIds = guestIds.filter(id => id !== myId);
       const otherGuests = (await Promise.all(otherGuestIds.map(id => api.getProfile(id)))).filter(Boolean) as Profile[];
 
       this.onMatch?.({
@@ -73,26 +67,31 @@ export class MatchmakingManager {
       return;
     }
 
-    // ── Host path: accumulate opponents over time ─────────────────────
-    const needed = (MAX_ROOM_SIZE - 1) - this.collectedGuestIds.length;
-    if (needed > 0) {
-      const rows = await api.findOpponents(this.myProfile.id, needed, this.collectedGuestIds);
-      for (const row of rows) {
-        if (!this.collectedGuestIds.includes(row.player_id)) {
-          this.collectedGuestIds.push(row.player_id);
-        }
-      }
+    // ── Step 2: Find all active waiting players ───────────────────────
+    const otherRows = await api.findOpponents(myId, MAX_ROOM_SIZE - 1, []);
+    const otherIds = otherRows.map((r: any) => r.player_id as string);
+
+    if (otherIds.length === 0) return; // alone in queue, keep waiting
+
+    // ── Step 3: Deterministic host election — smallest UUID wins ─────
+    // This eliminates the dual-host race: only one player in any group
+    // will ever call markMatchedRoom, because the election is deterministic.
+    const allIds = [myId, ...otherIds].sort();
+    const amHost = allIds[0] === myId;
+
+    if (!amHost) {
+      // I'm not the smallest ID — just wait for the host to pick me up via findRoomForMe
+      return;
     }
 
-    if (this.collectedGuestIds.length === 0) return; // still no one, keep waiting
+    // ── Step 4: I am host — accumulate guests up to room size ────────
+    const guestIds = otherIds.slice(0, MAX_ROOM_SIZE - 1); // take up to 3
 
-    // Write our current guest list immediately on every poll to:
-    // (a) prevent another host from stealing these guests (their findOpponents returns status='matched' rows filtered out)
-    // (b) let guests discover the room via findRoomForMe as soon as they're added
-    await api.markMatchedRoom(this.myProfile.id, this.collectedGuestIds);
+    // Claim guests immediately so no other player can steal them
+    await api.markMatchedRoom(myId, guestIds);
 
     const elapsed = Date.now() - this.searchStart;
-    const roomFull = this.collectedGuestIds.length >= MAX_ROOM_SIZE - 1;
+    const roomFull = guestIds.length >= MAX_ROOM_SIZE - 1;
     const timedOut = elapsed >= ACCUMULATION_MS;
 
     if (roomFull || timedOut) {
@@ -101,7 +100,7 @@ export class MatchmakingManager {
       this.setState('found');
 
       const guestProfiles = (await Promise.all(
-        this.collectedGuestIds.map(id => api.getProfile(id))
+        guestIds.map(id => api.getProfile(id))
       )).filter(Boolean) as Profile[];
 
       if (guestProfiles.length === 0) { this.setState('failed'); return; }
@@ -110,11 +109,12 @@ export class MatchmakingManager {
         opponents: guestProfiles,
         opponent: guestProfiles[0],
         myPlayerIndex: 0,
-        roomId: this.myProfile.id,
+        roomId: myId,
         isHost: true,
       });
     }
-    // else: keep polling every 2s — room still filling up
+    // else: room not full and not timed out yet — keep polling every 2s
+    // next poll will see more players if they join, and update matched_with
   }
 
   private clearPoll(): void {
