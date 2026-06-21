@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Echoes of the Small — Preview</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; }
+    canvas { display: block; image-rendering: pixelated; }
+
+    #previewOverlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      z-index: 100; pointer-events: none;
+    }
+    .hud-health {
+      position: fixed; top: 16px; left: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .hud-health-bar {
+      width: 160px; height: 12px;
+      background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px; overflow: hidden;
+    }
+    .hud-health-fill {
+      height: 100%; width: 100%;
+      background: linear-gradient(90deg, #2a5a3a, #5aaa6a);
+      border-radius: 6px; transition: width 0.3s ease;
+    }
+    .hud-health-text { font-size: 0.7em; color: #aaa; font-family: sans-serif; }
+    .hud-biome {
+      position: fixed; top: 16px; right: 16px;
+      font-size: 0.7em; color: #888; letter-spacing: 0.1em;
+      text-transform: uppercase; font-family: sans-serif;
+    }
+    .hud-scale {
+      position: fixed; top: 38px; left: 16px;
+      font-size: 0.6em; color: #6a9a8a; font-family: sans-serif;
+    }
+    .preview-badge {
+      position: fixed; bottom: 12px; right: 12px;
+      background: rgba(140,100,60,0.3); border: 1px solid rgba(180,140,80,0.3);
+      padding: 4px 12px; border-radius: 3px;
+      font-size: 0.65em; color: #b89868; letter-spacing: 0.1em;
+      font-family: sans-serif;
+    }
+    .controls-hint {
+      position: fixed; bottom: 12px; left: 12px;
+      font-size: 0.6em; color: #444; line-height: 1.5;
+      font-family: sans-serif;
+    }
+    .demo-timer {
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+      font-size: 0.7em; color: #666; letter-spacing: 0.1em;
+      font-family: sans-serif;
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="previewOverlay">
+    <div class="hud-health">
+      <div class="hud-health-bar"><div class="hud-health-fill" id="hpFill"></div></div>
+      <span class="hud-health-text" id="hpText">100/100</span>
+    </div>
+    <div class="hud-biome" id="biomeLabel">FOREST</div>
+    <div class="hud-scale" id="scaleLabel">Scale: Normal</div>
+    <div class="demo-timer" id="demoTimer">Auto-shrink in 8s</div>
+    <div class="preview-badge">STANDALONE PREVIEW</div>
+    <div class="controls-hint">
+      WASD/Arrows: Move | Space: Jump | J: Attack | K: Dodge | L: Parry<br>
+      Q: Shrink | R: Grow | Esc: Pause
+    </div>
+  </div>
+
+  <!-- All game scripts -->
+  <script src="src/engine/Game.js"></script>
+  <script src="src/engine/Renderer.js"></script>
+  <script src="src/engine/InputManager.js"></script>
+  <script src="src/engine/AudioEngine.js"></script>
+  <script src="src/engine/WorldManager.js"></script>
+  <script src="src/entities/Player.js"></script>
+  <script src="src/entities/Enemy.js"></script>
+  <script src="src/entities/Boss.js"></script>
+  <script src="src/systems/CombatSystem.js"></script>
+  <script src="src/systems/ScaleSystem.js"></script>
+  <script src="src/systems/ItemSystem.js"></script>
+  <script src="src/systems/QuestSystem.js"></script>
+  <script src="src/systems/RelicFusionSystem.js"></script>
+  <script src="src/systems/SaveSystem.js"></script>
+  <script src="src/ui/UIManager.js"></script>
+
+  <script>
+    let game, renderer, input, audio, world, combat, scaleSys;
+    let itemSys, questSys, fusionSys, saveSystem, ui;
+    let player;
+    let demoTime = 0;
+    let hasAutoShrunk = false;
+
+    function initPreview() {
+      game = new Game();
+      game.init();
+      game.setState('PLAYING');
+
+      renderer = new Renderer(document.getElementById('gameCanvas'), document.getElementById('gameCanvas').getContext('2d'));
+      input = new InputManager();
+      input.init();
+      audio = new AudioEngine();
+      audio.init();
+      audio.setBiome('FOREST');
+      audio.setIntensity(0.4);
+      audio.startMusic();
+
+      world = new WorldManager(game.worldSeed);
+      combat = new CombatSystem();
+      scaleSys = new ScaleSystem();
+
+      // Add a shrink zone near spawn
+      scaleSys.addShrinkZone(300, 280, 60);
+
+      itemSys = new ItemSystem();
+      questSys = new QuestSystem();
+      fusionSys = new RelicFusionSystem();
+      saveSystem = new SaveSystem();
+      ui = new UIManager();
+      ui.init();
+
+      player = new Player(256, 256);
+      game.player = player;
+
+      // Spawn enemies
+      game.enemies = [];
+      const types = ['GRUNT', 'GRUNT', 'ARCHER', 'BRUTE'];
+      for (let i = 0; i < 4; i++) {
+        const ex = 450 + (i % 2) * 200;
+        const ey = 280 + Math.floor(i / 2) * 40;
+        const enemy = new Enemy(ex, ey, types[i]);
+        game.enemies.push(enemy);
+      }
+
+      // Event listeners
+      window.GameEvents.on('player:damage', (data) => {
+        const pct = (data.currentHP / data.maxHP) * 100;
+        const fill = document.getElementById('hpFill');
+        fill.style.width = pct + '%';
+        fill.style.background = pct > 60 ? 'linear-gradient(90deg, #2a5a3a, #5aaa6a)' :
+                                  pct > 30 ? 'linear-gradient(90deg, #5a5a2a, #aaaa5a)' :
+                                  'linear-gradient(90deg, #5a2a2a, #aa5a5a)';
+        document.getElementById('hpText').textContent = Math.ceil(data.currentHP) + '/' + data.maxHP;
+      });
+
+      window.GameEvents.on('world:biomeChange', (data) => {
+        document.getElementById('biomeLabel').textContent = data.toBiome;
+      });
+
+      window.GameEvents.on('player:scaleChange', (data) => {
+        document.getElementById('scaleLabel').textContent =
+          'Scale: ' + (data.toScale <= 0.3 ? 'Small' : 'Normal');
+      });
+
+      window.GameEvents.on('system:notification', (data) => {
+        console.log('[Game]', data.message);
+      });
+
+      // Demo timer: auto-shrink after 8 seconds
+      setInterval(() => {
+        demoTime++;
+        const timerEl = document.getElementById('demoTimer');
+        if (!hasAutoShrunk && demoTime <= 8) {
+          timerEl.textContent = 'Auto-shrink in ' + (8 - demoTime) + 's';
+        } else if (!hasAutoShrunk && demoTime > 8) {
+          hasAutoShrunk = true;
+          timerEl.textContent = 'Shrunk! Explore small passages. Press R to grow.';
+          player.shrink();
+          setTimeout(() => { timerEl.style.opacity = '0'; }, 4000);
+        }
+      }, 1000);
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initPreview);
+    } else {
+      initPreview();
+    }
+  </script>
+</body>
+</html>
