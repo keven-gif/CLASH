@@ -9,17 +9,10 @@ declare global {
     EJS_color: string;
     EJS_startOnLoaded: boolean;
     EJS_backgroundColor: string;
-    EJS_defaultControls: boolean;
-    EJS_Buttons: Record<string, boolean>;
     EJS_volume: number;
-    EJS_fullscreenOnLoaded: boolean;
-    EJS_AdUrl?: string;
     EJS_onGameStart?: () => void;
-    EJS_onLoadState?: () => void;
   }
 }
-
-const EJS_CDN = 'https://cdn.emulatorjs.org/stable/data/';
 
 export default function MegaManZero() {
   const [phase, setPhase] = useState<'splash' | 'loading' | 'ready'>('splash');
@@ -33,33 +26,16 @@ export default function MegaManZero() {
     window.EJS_player = '#ejs-game';
     window.EJS_core = 'gba';
     window.EJS_gameUrl = `${base}roms/4567fb4f-Mega_Man_Zero.zip`;
-    window.EJS_pathtodata = EJS_CDN;
+    const ejsPath = `${window.location.origin}${base}ejs/`;
+    window.EJS_pathtodata = ejsPath;
     window.EJS_color = '#CC1122';
     window.EJS_backgroundColor = '#0d0010';
     window.EJS_startOnLoaded = true;
-    window.EJS_defaultControls = true;
     window.EJS_volume = 0.8;
-    window.EJS_Buttons = {
-      playPause: true,
-      restart: true,
-      mute: true,
-      settings: true,
-      fullscreen: true,
-      saveState: true,
-      loadState: true,
-      screenRecord: false,
-      gamepad: true,
-      cheat: false,
-      volume: true,
-      saveSavFiles: true,
-      loadSavFiles: true,
-      quickSave: true,
-      quickLoad: true,
-    };
     window.EJS_onGameStart = () => setPhase('ready');
 
     const script = document.createElement('script');
-    script.src = `${EJS_CDN}loader.js`;
+    script.src = `${ejsPath}loader.js`;
     script.async = true;
     document.body.appendChild(script);
     scriptRef.current = script;
