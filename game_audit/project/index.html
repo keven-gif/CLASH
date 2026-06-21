@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Echoes of the Small</title>
+  <style>
+    /* ─── Reset & Base ─── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #0a0a0a;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #e0e0e0;
+    }
+    canvas {
+      display: block;
+      image-rendering: pixelated;
+    }
+
+    /* ─── UI Overlay ─── */
+    #uiOverlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 100;
+    }
+    #uiOverlay > * { pointer-events: auto; }
+
+    /* ─── Loading Screen ─── */
+    #loadingScreen {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: linear-gradient(135deg, #0a0e1a 0%, #1a1020 50%, #0a1a12 100%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 1000;
+      transition: opacity 1s ease;
+    }
+    #loadingScreen.hidden { opacity: 0; pointer-events: none; }
+    #loadingTitle {
+      font-size: 3em; font-weight: 300; letter-spacing: 0.3em;
+      color: #c8b8d8; text-shadow: 0 0 30px rgba(200,180,220,0.4);
+      margin-bottom: 10px;
+      animation: titlePulse 3s ease-in-out infinite;
+    }
+    #loadingSubtitle {
+      font-size: 1em; color: #7a6a8a; letter-spacing: 0.15em;
+      margin-bottom: 50px;
+    }
+    #loadingBarContainer {
+      width: 320px; height: 4px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 2px; overflow: hidden;
+      margin-bottom: 20px;
+    }
+    #loadingBar {
+      width: 0%; height: 100%;
+      background: linear-gradient(90deg, #5a8a6a, #7ab88a);
+      border-radius: 2px;
+      transition: width 0.4s ease;
+    }
+    #loadingTip {
+      font-size: 0.8em; color: #555; max-width: 400px;
+      text-align: center; line-height: 1.5;
+    }
+    @keyframes titlePulse {
+      0%, 100% { text-shadow: 0 0 30px rgba(200,180,220,0.4); }
+      50% { text-shadow: 0 0 60px rgba(200,180,220,0.7), 0 0 100px rgba(100,200,150,0.2); }
+    }
+
+    /* ─── Title Screen ─── */
+    #titleScreen {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: url('assets/bg/title_forest.png') center/cover no-repeat;
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 900;
+    }
+    #titleScreen::before {
+      content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: linear-gradient(180deg, rgba(5,10,8,0.3) 0%, rgba(10,8,15,0.5) 40%, rgba(5,10,15,0.7) 70%, rgba(5,5,8,0.85) 100%);
+      z-index: 0;
+    }
+    #titleScreen > * { position: relative; z-index: 1; }
+    #titleScreen.active { display: flex; }
+    #titleLogo {
+      font-size: 4em; font-weight: 200; letter-spacing: 0.4em;
+      color: #d4c5e2;
+      text-shadow: 0 0 40px rgba(180,160,210,0.3), 0 2px 10px rgba(0,0,0,0.8);
+      margin-bottom: 8px;
+      animation: logoFloat 6s ease-in-out infinite;
+    }
+    #titleTagline {
+      font-size: 0.9em; color: #7a7a8a; letter-spacing: 0.25em;
+      margin-bottom: 60px;
+    }
+    .titleMenu {
+      display: flex; flex-direction: column; gap: 12px;
+      align-items: center;
+    }
+    .titleBtn {
+      background: transparent; border: 1px solid rgba(180,170,200,0.2);
+      color: #b0a8c0; padding: 12px 40px;
+      font-size: 1em; letter-spacing: 0.15em; cursor: pointer;
+      transition: all 0.3s ease; min-width: 240px;
+      text-align: center;
+    }
+    .titleBtn:hover {
+      border-color: rgba(140,200,160,0.5);
+      color: #c8e0d0;
+      background: rgba(140,200,160,0.05);
+      text-shadow: 0 0 10px rgba(140,200,160,0.3);
+    }
+    .titleBtn.primary {
+      border-color: rgba(140,200,160,0.3);
+      color: #a8d8b8;
+    }
+    .titleVersion {
+      position: absolute; bottom: 20px; right: 30px;
+      font-size: 0.7em; color: #444;
+    }
+    @keyframes logoFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    /* ─── HUD ─── */
+    #hud { display: none; }
+    #hud.active { display: block; }
+    .hud-health {
+      position: fixed; top: 20px; left: 20px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .hud-health-bar {
+      width: 200px; height: 14px;
+      background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 7px; overflow: hidden;
+    }
+    .hud-health-fill {
+      height: 100%; width: 100%;
+      background: linear-gradient(90deg, #2a5a3a, #5aaa6a);
+      border-radius: 7px;
+      transition: width 0.3s ease, background 0.5s ease;
+    }
+    .hud-health-text {
+      font-size: 0.75em; color: #aaa; min-width: 50px;
+    }
+    .hud-biome {
+      position: fixed; top: 20px; right: 20px;
+      font-size: 0.75em; color: #888; letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .hud-scale {
+      position: fixed; top: 50px; left: 20px;
+      font-size: 0.7em; color: #6a9a8a; letter-spacing: 0.05em;
+    }
+    .hud-notification {
+      position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+      background: rgba(10,15,20,0.85); border: 1px solid rgba(180,170,200,0.15);
+      padding: 10px 24px; border-radius: 4px;
+      font-size: 0.85em; color: #c0b8d0;
+      opacity: 0; transition: opacity 0.5s, transform 0.5s;
+      transform: translateX(-50%) translateY(20px);
+    }
+    .hud-notification.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ─── Pause Menu ─── */
+    #pauseMenu {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(5,8,12,0.85);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 12px;
+      z-index: 950;
+    }
+    #pauseMenu.active { display: flex; }
+    #pauseMenu h2 {
+      font-size: 2em; font-weight: 300; letter-spacing: 0.2em;
+      color: #b8a8c8; margin-bottom: 20px;
+    }
+
+    /* ─── Controls Hint ─── */
+    .controls-hint {
+      position: fixed; bottom: 20px; left: 20px;
+      font-size: 0.65em; color: #555; line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Game Canvas -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- UI Overlay -->
+  <div id="uiOverlay">
+    <!-- HUD (in-game) -->
+    <div id="hud">
+      <div class="hud-health">
+        <div class="hud-health-bar"><div class="hud-health-fill" id="hpFill"></div></div>
+        <span class="hud-health-text" id="hpText">100/100</span>
+      </div>
+      <div class="hud-biome" id="biomeLabel">FOREST</div>
+      <div class="hud-scale" id="scaleLabel">Scale: Normal</div>
+      <div class="hud-notification" id="notification"></div>
+    </div>
+
+    <!-- Pause Menu -->
+    <div id="pauseMenu">
+      <h2>PAUSED</h2>
+      <button class="titleBtn" onclick="game.setState('PLAYING')">Resume</button>
+      <button class="titleBtn" onclick="saveSystem.save(0); showNotification('Game saved', 'success')">Save Game</button>
+      <button class="titleBtn" onclick="game.setState('INVENTORY')">Inventory</button>
+      <button class="titleBtn" onclick="game.setState('TITLE')">Quit to Title</button>
+    </div>
+  </div>
+
+  <!-- Loading Screen -->
+  <div id="loadingScreen">
+    <div id="loadingTitle">ECHOES OF THE SMALL</div>
+    <div id="loadingSubtitle">A WORLD BENEATH YOUR NOTICE</div>
+    <div id="loadingBarContainer"><div id="loadingBar"></div></div>
+    <div id="loadingTip">Tip: Press Q near glowing shrines to shrink and discover hidden paths.</div>
+  </div>
+
+  <!-- Title Screen -->
+  <div id="titleScreen">
+    <div id="titleLogo">ECHOES OF THE SMALL</div>
+    <div id="titleTagline">A WORLD BENEATH YOUR NOTICE</div>
+    <div class="titleMenu">
+      <button class="titleBtn primary" onclick="startGame()">NEW GAME</button>
+      <button class="titleBtn" onclick="loadGame()">CONTINUE</button>
+      <button class="titleBtn" onclick="showSettings()">SETTINGS</button>
+      <button class="titleBtn" onclick="showCredits()">CREDITS</button>
+    </div>
+    <div class="titleVersion">v1.0.0</div>
+  </div>
+
+  <!-- Controls Hint -->
+  <div class="controls-hint" id="controlsHint" style="display:none;">
+    WASD/Arrows: Move | Space: Jump | J: Attack | K: Dodge | L: Parry<br>
+    Q: Shrink | R: Grow | E: Interact | Tab: Inventory | Esc: Pause
+  </div>
+
+  <!-- ─── Engine Scripts ─── -->
+  <script src="src/engine/Game.js"></script>
+  <script src="src/engine/Renderer.js"></script>
+  <script src="src/engine/InputManager.js"></script>
+  <script src="src/engine/AudioEngine.js"></script>
+  <script src="src/engine/WorldManager.js"></script>
+
+  <!-- ─── Entity Scripts ─── -->
+  <script src="src/entities/Player.js"></script>
+  <script src="src/entities/Enemy.js"></script>
+  <script src="src/entities/Boss.js"></script>
+
+  <!-- ─── System Scripts ─── -->
+  <script src="src/systems/CombatSystem.js"></script>
+  <script src="src/systems/ScaleSystem.js"></script>
+  <script src="src/systems/ItemSystem.js"></script>
+  <script src="src/systems/QuestSystem.js"></script>
+  <script src="src/systems/RelicFusionSystem.js"></script>
+  <script src="src/systems/SaveSystem.js"></script>
+  <script src="src/ui/UIManager.js"></script>
+
+  <!-- ─── Game Bootstrap ─── -->
+  <script>
+    // Loading tips
+    const TIPS = [
+      "Press Q near glowing shrines to shrink and discover hidden paths.",
+      "Chain attacks within 1.5 seconds to build combos for extra damage.",
+      "Press L just before an enemy strikes to parry and stun them.",
+      "Press K to dodge-roll through attacks with full invincibility.",
+      "Hold J to charge a powerful attack that deals up to 2x damage.",
+      "Explore every biome to find all 6 dungeon items.",
+      "Combine relics at fusion shrines to discover 60 unique powers.",
+      "Complete side quests to change the world and unlock new areas.",
+      "Each boss has 3 phases — watch for visual cues at 75%, 50%, and 25% HP.",
+      "Shrinking reduces your damage but lets you reach secret areas.",
+      "The Whispering Seed lets you shrink anywhere, not just at shrines.",
+      "Dodge just as an attack lands to avoid damage completely.",
+      "Parrying freezes enemies — follow up with a charged attack for massive damage.",
+      "Discover secret 3-relic combinations for the most powerful fusions."
+    ];
+
+    let game, renderer, input, audio, world, combat, scaleSys;
+    let itemSys, questSys, fusionSys, saveSystem, ui;
+    let player;
+    let loadingProgress = 0;
+
+    function setLoading(pct, tipIndex) {
+      loadingProgress = pct;
+      document.getElementById('loadingBar').style.width = pct + '%';
+      if (tipIndex !== undefined) {
+        document.getElementById('loadingTip').textContent = 'Tip: ' + TIPS[tipIndex % TIPS.length];
+      }
+    }
+
+    function showNotification(msg, type) {
+      const el = document.getElementById('notification');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 3000);
+    }
+
+    // ─── Initialization ───
+    async function initGame() {
+      setLoading(5, 0);
+
+      // Initialize core systems
+      setLoading(15, 1);
+      game = new Game();
+      game.init();
+
+      // Use the subsystems already initialized by game.init() — no duplicate instances
+      setLoading(25, 2);
+      renderer = game.renderer;
+
+      setLoading(35, 3);
+      input = game.input;
+
+      setLoading(45, 4);
+      audio = game.audio;
+
+      setLoading(55, 5);
+      world = new WorldManager(game.worldSeed);
+
+      setLoading(65, 6);
+      combat = new CombatSystem();
+
+      setLoading(70, 7);
+      scaleSys = new ScaleSystem();
+
+      setLoading(75, 8);
+      itemSys = new ItemSystem();
+      questSys = new QuestSystem();
+
+      setLoading(80, 9);
+      fusionSys = new RelicFusionSystem();
+
+      setLoading(85, 10);
+      saveSystem = new SaveSystem();
+
+      setLoading(90, 11);
+      ui = new UIManager();
+      ui.init();
+
+      // Set up event listeners
+      setupEventListeners();
+
+      setLoading(100, 12);
+
+      // Show title screen after brief delay
+      setTimeout(() => {
+        document.getElementById('loadingScreen').classList.add('hidden');
+        setTimeout(() => {
+          document.getElementById('loadingScreen').style.display = 'none';
+          showTitleScreen();
+        }, 1000);
+      }, 500);
+    }
+
+    function setupEventListeners() {
+      // State changes
+      window.GameEvents.on('system:stateChange', (data) => {
+        if (data.to === 'PAUSED') {
+          document.getElementById('pauseMenu').classList.add('active');
+          document.getElementById('hud').classList.remove('active');
+        } else if (data.from === 'PAUSED') {
+          document.getElementById('pauseMenu').classList.remove('active');
+          document.getElementById('hud').classList.add('active');
+        }
+        if (data.to === 'PLAYING') {
+          document.getElementById('hud').classList.add('active');
+          document.getElementById('controlsHint').style.display = 'block';
+          document.getElementById('titleScreen').classList.remove('active');
+        }
+        if (data.to === 'TITLE') {
+          document.getElementById('hud').classList.remove('active');
+          document.getElementById('pauseMenu').classList.remove('active');
+          document.getElementById('controlsHint').style.display = 'none';
+          showTitleScreen();
+        }
+      });
+
+      // Player damage
+      window.GameEvents.on('player:damage', (data) => {
+        const pct = (data.currentHP / data.maxHP) * 100;
+        const fill = document.getElementById('hpFill');
+        fill.style.width = pct + '%';
+        fill.style.background = pct > 60 ? 'linear-gradient(90deg, #2a5a3a, #5aaa6a)' :
+                                  pct > 30 ? 'linear-gradient(90deg, #5a5a2a, #aaaa5a)' :
+                                  'linear-gradient(90deg, #5a2a2a, #aa5a5a)';
+        document.getElementById('hpText').textContent = Math.ceil(data.currentHP) + '/' + data.maxHP;
+      });
+
+      // Biome changes
+      window.GameEvents.on('world:biomeChange', (data) => {
+        document.getElementById('biomeLabel').textContent = data.toBiome;
+      });
+
+      // Scale changes
+      window.GameEvents.on('player:scaleChange', (data) => {
+        document.getElementById('scaleLabel').textContent =
+          'Scale: ' + (data.toScale <= 0.3 ? 'Small' : 'Normal');
+      });
+
+      // Notifications
+      window.GameEvents.on('system:notification', (data) => {
+        showNotification(data.message, data.type);
+      });
+
+      // Quest events
+      window.GameEvents.on('quest:start', (data) => showNotification('Quest started: ' + data.questId, 'info'));
+      window.GameEvents.on('quest:complete', (data) => showNotification('Quest complete!', 'success'));
+
+      // Item pickup
+      window.GameEvents.on('player:itemPickup', (data) => {
+        showNotification('Acquired: ' + data.itemName, 'success');
+      });
+
+      // Boss events
+      window.GameEvents.on('boss:phase', (data) => {
+        showNotification(data.name + ' - Phase ' + data.phase + '!', 'warning');
+      });
+      window.GameEvents.on('boss:defeated', (data) => {
+        showNotification(data.name + ' defeated!', 'success');
+      });
+    }
+
+    function showTitleScreen() {
+      document.getElementById('titleScreen').classList.add('active');
+      // Play ambient music
+      if (audio) {
+        audio.setBiome('FOREST');
+        audio.setIntensity(0.2);
+        audio.startMusic();
+      }
+    }
+
+    function startGame() {
+      document.getElementById('titleScreen').classList.remove('active');
+      game.setState('PLAYING');
+
+      // Create player
+      player = new Player(256, 256); // Start in first chunk center
+      game.player = player;
+
+      // Spawn initial enemies
+      spawnInitialEntities();
+
+      // Start gameplay music
+      audio.setIntensity(0.4);
+
+      // Auto-save setup
+      setInterval(() => {
+        if (game.state === 'PLAYING') {
+          saveSystem.autoSave(game, world, player, questSys, fusionSys);
+        }
+      }, 120000); // Every 2 minutes
+
+      showNotification('Press WASD to move, J to attack, Q to shrink near shrines', 'info');
+    }
+
+    function loadGame() {
+      const data = saveSystem.load(0);
+      if (!data) {
+        showNotification('No save data found', 'warning');
+        return;
+      }
+      // TODO: Restore full game state from save
+      showNotification('Loading not yet fully implemented', 'info');
+      startGame();
+    }
+
+    function spawnInitialEntities() {
+      // Spawn some grunts near the starting area for immediate gameplay
+      for (let i = 0; i < 3; i++) {
+        const ex = 400 + Math.random() * 300;
+        const ey = 300 + Math.random() * 100;
+        const enemy = new Enemy(ex, ey, 'GRUNT');
+        game.addEntity(enemy);
+      }
+    }
+
+    function showSettings() {
+      showNotification('Settings coming soon', 'info');
+    }
+
+    function showCredits() {
+      showNotification('Echoes of the Small - Built with multi-agent AI orchestration', 'info');
+    }
+
+    // Start initialization when DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initGame);
+    } else {
+      initGame();
+    }
+  </script>
+</body>
+</html>
