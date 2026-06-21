@@ -15,6 +15,7 @@ const Profile = lazy(() => import('./pages/Profile'))
 const Leaderboard = lazy(() => import('./pages/Leaderboard'))
 const QueueScreen = lazy(() => import('./pages/QueueScreen'))
 const LobbyScreen = lazy(() => import('./pages/LobbyScreen'))
+const MegaManZero = lazy(() => import('./pages/MegaManZero'))
 
 function LoadingFallback() {
   return (
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/queue" element={<QueueScreen />} />
         <Route path="/lobby" element={<LobbyScreen />} />
+        <Route path="/mmz" element={<MegaManZero />} />
       </Routes>
     </Suspense>
   )

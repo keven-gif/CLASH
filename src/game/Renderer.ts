@@ -22,6 +22,7 @@ export function preloadCharacterImages(): void {
   loadCharacterImage('ronin', `${base}characters/ronin.jpg?v=2`);
   loadCharacterImage('alchemist', `${base}characters/alchemist.png?v=2`);
   loadCharacterImage('gunner', `${base}characters/gunner.png?v=2`);
+  loadCharacterImage('zero', `${base}characters/zero.svg`);
   loadCharacterImage('gunner-sheet', `${base}characters/blaze-sheet-clean.png?v=2`);
   loadCharacterImage('swordsman-sheet', `${base}characters/ace-sheet-clean.png?v=2`);
   loadCharacterImage('assassin-sheet', `${base}characters/shadow-sheet-clean.png?v=2`);
@@ -111,6 +112,7 @@ export function preloadStageImages(): void {
   loadStageImage('battlefield', `${base}stages/stage-battlefield.jpg?v=2`);
   loadStageImage('final', `${base}stages/stage-final-destination.jpg?v=2`);
   loadStageImage('hazard', `${base}stages/stage-hazard.jpg?v=2`);
+  loadStageImage('neo-arcadia', `${base}stages/stage-neo-arcadia.svg`);
 }
 
 // ─── Character Design Tokens ─────────────────────────────────────────
@@ -122,6 +124,7 @@ const CHAR_DESIGN: Record<string, CharDesign> = {
   ronin:     { skin: '#c8a882', body: '#1a2035', accent: '#4da6ff', weapon: '#88ccff' },
   alchemist: { skin: '#b5c77a', body: '#1a3a1a', accent: '#39ff14', weapon: '#88ff44' },
   gunner:    { skin: '#c8906a', body: '#3d2b1f', accent: '#ff8c00', weapon: '#ffcc44' },
+  zero:      { skin: '#ffddc8', body: '#cc1122', accent: '#ff2244', weapon: '#00ffb0' },
 };
 
 // ─── Character Silhouette Drawing ────────────────────────────────────
@@ -372,6 +375,69 @@ function drawCharacterSilhouette(
           ctx.shadowBlur = 0;
         }
       }
+      break;
+    }
+    case 'zero': {
+      // Long blonde hair ponytail flowing behind
+      ctx.fillStyle = '#F0D020';
+      ctx.beginPath();
+      ctx.ellipse(hx - headR * 0.3 * direction, hy + headR * 0.5, headR * 0.25, headR * 1.4, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+      // Red helmet with cyan forehead gem
+      ctx.fillStyle = d.accent;
+      ctx.beginPath();
+      ctx.arc(hx, hy, headR, Math.PI * 0.1, Math.PI * 0.9, true);
+      ctx.fill();
+      // Helmet gem
+      ctx.fillStyle = '#00CCFF';
+      ctx.shadowColor = '#00CCFF';
+      ctx.shadowBlur = 10 * sc;
+      ctx.beginPath(); ctx.ellipse(hx, hy - headR * 0.5, 4 * sc, 3 * sc, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      // Chest core gem
+      ctx.fillStyle = '#00CCFF';
+      ctx.shadowColor = '#00CCFF';
+      ctx.shadowBlur = isAttack ? 16 * sc : 8 * sc;
+      ctx.beginPath(); ctx.arc(x, torsoY + torsoH * 0.35, 5 * sc, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      // Z-SABER energy blade (right side, vertical/angled based on attack)
+      const zsX = x + torsoW * 0.6 * direction;
+      const zsY0 = torsoY - 30 * sc;
+      const zsY1 = hipY + 12 * sc;
+      ctx.strokeStyle = d.weapon;
+      ctx.lineWidth = isAttack ? 5 * sc : 3.5 * sc;
+      ctx.shadowColor = d.weapon;
+      ctx.shadowBlur = isAttack ? 24 * sc : 12 * sc;
+      ctx.lineCap = 'round';
+      if (isAttack) {
+        // Diagonal slash effect
+        ctx.beginPath();
+        ctx.moveTo(zsX - 14 * sc, torsoY);
+        ctx.lineTo(zsX + 14 * sc, hipY + 8 * sc);
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(zsX, zsY0);
+        ctx.lineTo(zsX, zsY1);
+        ctx.stroke();
+      }
+      // Blade tip glow
+      const tipY = isAttack ? torsoY - 4 * sc : zsY0;
+      ctx.fillStyle = d.weapon;
+      ctx.beginPath(); ctx.arc(zsX, tipY, 4 * sc, 0, Math.PI * 2); ctx.fill();
+      // Z-Buster cannon (left arm nozzle)
+      const zbX = x - torsoW * 0.55 * direction;
+      const zbY = torsoY + armH * 0.75;
+      ctx.shadowBlur = isAttack ? 18 * sc : 6 * sc;
+      ctx.shadowColor = '#FF4466';
+      ctx.fillStyle = '#880010';
+      ctx.beginPath(); ctx.arc(zbX, zbY, 7 * sc, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#FF2244';
+      if (isAttack) {
+        ctx.fillStyle = '#FF6688';
+        ctx.beginPath(); ctx.arc(zbX - direction * 16 * sc, zbY, 5 * sc, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.shadowBlur = 0;
       break;
     }
   }

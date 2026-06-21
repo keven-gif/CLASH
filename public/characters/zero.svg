@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300" width="200" height="300">
+  <!-- Background glow -->
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#FF2244" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#1a0005" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="saberGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00FFB0" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#00AA70" stop-opacity="0.1"/>
+    </radialGradient>
+    <filter id="bloomRed">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="bloomCyan">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background glow circle -->
+  <ellipse cx="100" cy="160" rx="80" ry="110" fill="url(#glow)"/>
+
+  <!-- ── HAIR / PONYTAIL ── -->
+  <!-- Main head hair base -->
+  <ellipse cx="100" cy="62" rx="32" ry="28" fill="#F0D020"/>
+  <!-- Hair falling behind (left) -->
+  <path d="M72 65 Q45 120 38 220 Q44 240 50 220 Q58 140 80 90 Z" fill="#E8C818"/>
+  <!-- Hair falling behind (right taper) -->
+  <path d="M128 65 Q138 100 132 140 Q128 100 116 80 Z" fill="#E8C818"/>
+  <!-- Hair front bang / sweep -->
+  <path d="M74 58 Q80 38 100 35 Q118 33 126 55 Q118 42 100 42 Q84 44 78 58 Z" fill="#FFE040"/>
+  <!-- Ponytail band -->
+  <rect x="86" y="85" width="28" height="8" rx="3" fill="#CC0022"/>
+
+  <!-- ── HELMET ── -->
+  <!-- Helmet shell -->
+  <path d="M68 68 Q68 40 100 36 Q132 40 132 68 L132 80 Q120 88 100 90 Q80 88 68 80 Z" fill="#CC1122"/>
+  <!-- Helmet visor area (dark) -->
+  <path d="M76 62 Q76 50 100 48 Q124 50 124 62 L124 72 Q112 78 100 80 Q88 78 76 72 Z" fill="#880010"/>
+  <!-- Forehead gem -->
+  <ellipse cx="100" cy="56" rx="8" ry="5" fill="#00CCFF" filter="url(#bloomCyan)"/>
+  <ellipse cx="100" cy="55" rx="4" ry="2.5" fill="#88EEFF"/>
+  <!-- Ear guards -->
+  <rect x="64" y="62" width="10" height="20" rx="3" fill="#AA0018"/>
+  <rect x="126" y="62" width="10" height="20" rx="3" fill="#AA0018"/>
+
+  <!-- ── FACE ── -->
+  <ellipse cx="100" cy="80" rx="22" ry="18" fill="#FFDDC8"/>
+  <!-- Eyes -->
+  <ellipse cx="91" cy="77" rx="4" ry="4.5" fill="#1A1A2E"/>
+  <ellipse cx="109" cy="77" rx="4" ry="4.5" fill="#1A1A2E"/>
+  <!-- Eye shine -->
+  <circle cx="89" cy="75" r="1.5" fill="#FFFFFF"/>
+  <circle cx="107" cy="75" r="1.5" fill="#FFFFFF"/>
+  <!-- Nose hint -->
+  <path d="M98 83 Q100 85 102 83" stroke="#D4A090" stroke-width="1" fill="none"/>
+  <!-- Mouth (determined expression) -->
+  <path d="M93 89 Q100 92 107 89" stroke="#B08878" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+
+  <!-- ── NECK ── -->
+  <rect x="92" y="96" width="16" height="12" rx="3" fill="#FFDDC8"/>
+
+  <!-- ── CHEST ARMOR ── -->
+  <!-- Body center -->
+  <path d="M72 108 Q72 100 100 98 Q128 100 128 108 L132 180 Q116 188 100 190 Q84 188 68 180 Z" fill="#CC1122"/>
+  <!-- Chest gem / core -->
+  <ellipse cx="100" cy="122" rx="10" ry="8" fill="#00CCFF" filter="url(#bloomCyan)"/>
+  <ellipse cx="100" cy="121" rx="5" ry="4" fill="#88EEFF"/>
+  <!-- Armor highlight lines -->
+  <line x1="88" y1="110" x2="86" y2="145" stroke="#FF4466" stroke-width="1.5" opacity="0.5"/>
+  <line x1="112" y1="110" x2="114" y2="145" stroke="#FF4466" stroke-width="1.5" opacity="0.5"/>
+  <!-- Belly plate -->
+  <path d="M80 155 Q80 148 100 146 Q120 148 120 155 L118 172 Q100 176 82 172 Z" fill="#AA0018"/>
+
+  <!-- ── SHOULDER GUARDS ── -->
+  <!-- Left shoulder -->
+  <ellipse cx="65" cy="108" rx="16" ry="13" fill="#DD1122"/>
+  <ellipse cx="65" cy="106" rx="10" ry="8" fill="#BB0018"/>
+  <!-- Right shoulder -->
+  <ellipse cx="135" cy="108" rx="16" ry="13" fill="#DD1122"/>
+  <ellipse cx="135" cy="106" rx="10" ry="8" fill="#BB0018"/>
+
+  <!-- ── LEFT ARM (Z-Buster side) ── -->
+  <!-- Upper arm -->
+  <rect x="48" y="118" width="18" height="38" rx="8" fill="#CC1122"/>
+  <!-- Lower arm / buster cannon -->
+  <rect x="44" y="155" width="22" height="30" rx="10" fill="#990010"/>
+  <!-- Buster nozzle -->
+  <circle cx="55" cy="188" r="8" fill="#660008"/>
+  <circle cx="55" cy="188" r="4" fill="#AA1122" filter="url(#bloomRed)"/>
+
+  <!-- ── RIGHT ARM (Z-Saber side) ── -->
+  <!-- Upper arm -->
+  <rect x="134" y="118" width="18" height="38" rx="8" fill="#CC1122"/>
+  <!-- Forearm -->
+  <rect x="136" y="155" width="16" height="28" rx="7" fill="#AA0018"/>
+  <!-- Hand grip on saber hilt -->
+  <rect x="138" y="180" width="12" height="14" rx="5" fill="#880010"/>
+  <!-- Saber hilt guard -->
+  <rect x="132" y="190" width="24" height="6" rx="3" fill="#661000"/>
+  <!-- Z-SABER BLADE (energy) -->
+  <rect x="143" y="100" width="10" height="96" rx="5" fill="#00FFB0" filter="url(#bloomCyan)" opacity="0.95"/>
+  <rect x="146" y="104" width="4" height="88" rx="2" fill="#AAFFD8" opacity="0.9"/>
+  <!-- Saber tip glow -->
+  <ellipse cx="148" cy="102" rx="7" ry="4" fill="#00FFB0" filter="url(#bloomCyan)" opacity="0.7"/>
+
+  <!-- ── WAIST / BELT ── -->
+  <rect x="78" y="175" width="44" height="12" rx="4" fill="#880010"/>
+  <!-- Belt buckle -->
+  <rect x="94" y="177" width="12" height="8" rx="2" fill="#FF4466"/>
+
+  <!-- ── LEGS ── -->
+  <!-- Left thigh -->
+  <rect x="79" y="186" width="18" height="38" rx="7" fill="#CC1122"/>
+  <!-- Right thigh -->
+  <rect x="103" y="186" width="18" height="38" rx="7" fill="#CC1122"/>
+  <!-- Left knee pad -->
+  <rect x="77" y="218" width="22" height="12" rx="5" fill="#AA0018"/>
+  <!-- Right knee pad -->
+  <rect x="101" y="218" width="22" height="12" rx="5" fill="#AA0018"/>
+  <!-- Left shin -->
+  <rect x="80" y="228" width="16" height="36" rx="6" fill="#BB1020"/>
+  <!-- Right shin -->
+  <rect x="104" y="228" width="16" height="36" rx="6" fill="#BB1020"/>
+  <!-- Left boot -->
+  <path d="M76 260 Q76 264 80 268 L96 268 Q102 264 96 260 Z" fill="#880010"/>
+  <!-- Right boot -->
+  <path d="M104 260 Q104 264 100 268 L120 268 Q122 264 120 260 Z" fill="#880010"/>
+
+  <!-- Ambient energy particles -->
+  <circle cx="30" cy="140" r="2" fill="#00FFB0" opacity="0.6"/>
+  <circle cx="165" cy="95" r="2.5" fill="#00FFB0" opacity="0.5"/>
+  <circle cx="22" cy="200" r="1.5" fill="#FF4466" opacity="0.5"/>
+  <circle cx="170" cy="220" r="2" fill="#FF4466" opacity="0.4"/>
+</svg>
