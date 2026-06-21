@@ -548,18 +548,12 @@ export function fighterTakeHit(
     hitbox.angle
   );
 
-  // Apply knockback in attacker's facing direction
-  const kbDir = hitbox.x >= 0 ? attackerDirection : -attackerDirection;
-
+  // Apply knockback away from attacker (positive angle = attacker's facing direction)
   if (isAutoKO) {
-    // Auto-KO: send fighter flying way past blast zones with massive velocity
-    // Direction: up and away from attacker for dramatic star-KO effect
-    const awayDir = kbDir;
-    fighter.velocity.x = awayDir * (18 + Math.random() * 8);  // 18-26 horizontal
-    fighter.velocity.y = -(22 + Math.random() * 12);           // -22 to -34 vertical (up and away)
+    fighter.velocity.x = attackerDirection * (18 + Math.random() * 8);
+    fighter.velocity.y = -(22 + Math.random() * 12);
   } else {
-    // Normal knockback
-    fighter.velocity.x = kbVector.x * kbDir;
+    fighter.velocity.x = kbVector.x * attackerDirection;
     fighter.velocity.y = kbVector.y;
   }
 
