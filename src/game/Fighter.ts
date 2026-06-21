@@ -625,6 +625,7 @@ export function getCharacterAccentColor(characterId: string): string {
     ronin: '#4DA6FF',
     alchemist: '#39FF14',
     gunner: '#FF8C00',
+    zero: '#FF2244',
   };
   return colors[characterId] ?? '#FFFFFF';
 }

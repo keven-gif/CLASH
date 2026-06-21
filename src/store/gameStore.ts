@@ -111,6 +111,15 @@ export const CHARACTERS: Character[] = [
     image: `${BASE}characters/gunner.png?v=2`,
     description: 'A sharpshooting dual-pistol marksman who dominates from mid-range.',
   },
+  {
+    id: 'zero',
+    name: 'Zero',
+    accentColor: '#FF2244',
+    archetype: 'Rushdown',
+    stats: { power: 5, speed: 5, defense: 2, special: 5, weight: 'Light' },
+    image: `${BASE}characters/zero.svg`,
+    description: 'The legendary reploid warrior wielding the Z-Saber and Z-Buster with unmatched precision.',
+  },
 ];
 
 export const STAGES: Stage[] = [
@@ -133,6 +142,13 @@ export const STAGES: Stage[] = [
     name: 'Factory Floor',
     image: `${BASE}stages/stage-hazard.jpg?v=2`,
     description: 'An industrial stage with moving hazards. Watch your step!',
+    hasHazards: true,
+  },
+  {
+    id: 'neo-arcadia',
+    name: 'Neo Arcadia',
+    image: `${BASE}stages/stage-neo-arcadia.svg`,
+    description: 'The towering fortress of Neo Arcadia. Vertical pillars and rising energy platforms test your aerial mastery.',
     hasHazards: true,
   },
 ];

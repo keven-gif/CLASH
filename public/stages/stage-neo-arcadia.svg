@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0d0020"/>
+      <stop offset="40%" stop-color="#1a003a"/>
+      <stop offset="100%" stop-color="#2d0055"/>
+    </linearGradient>
+    <linearGradient id="pillar" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3a003a"/>
+      <stop offset="30%" stop-color="#550055"/>
+      <stop offset="70%" stop-color="#440044"/>
+      <stop offset="100%" stop-color="#2a002a"/>
+    </linearGradient>
+    <linearGradient id="energyV" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FF2244" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#FF2244" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#FF2244" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="ground" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#440055"/>
+      <stop offset="100%" stop-color="#220033"/>
+    </linearGradient>
+    <radialGradient id="glowRed" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF2244" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#FF2244" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowGold" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFB800" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#FFB800" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="bloom">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Sky background -->
+  <rect width="800" height="450" fill="url(#sky)"/>
+
+  <!-- Stars -->
+  <g opacity="0.6">
+    <circle cx="42" cy="28" r="1" fill="#fff"/>
+    <circle cx="140" cy="55" r="0.8" fill="#fff"/>
+    <circle cx="250" cy="20" r="1.2" fill="#fff"/>
+    <circle cx="380" cy="35" r="0.7" fill="#fff"/>
+    <circle cx="490" cy="18" r="1" fill="#fff"/>
+    <circle cx="620" cy="44" r="0.9" fill="#fff"/>
+    <circle cx="720" cy="22" r="1.1" fill="#fff"/>
+    <circle cx="760" cy="60" r="0.6" fill="#fff"/>
+    <circle cx="80" cy="90" r="0.8" fill="#cc88ff"/>
+    <circle cx="320" cy="75" r="0.7" fill="#cc88ff"/>
+    <circle cx="560" cy="88" r="0.9" fill="#cc88ff"/>
+  </g>
+
+  <!-- Distant Neo Arcadia towers (background) -->
+  <g opacity="0.35">
+    <!-- Far left tower -->
+    <rect x="30" y="80" width="50" height="250" fill="#440055"/>
+    <rect x="25" y="60" width="60" height="30" fill="#550066"/>
+    <rect x="38" y="55" width="34" height="15" fill="#660077"/>
+    <!-- Far right tower -->
+    <rect x="720" y="60" width="50" height="270" fill="#440055"/>
+    <rect x="715" y="40" width="60" height="30" fill="#550066"/>
+    <rect x="728" y="35" width="34" height="15" fill="#660077"/>
+    <!-- Mid-left tower -->
+    <rect x="130" y="110" width="35" height="200" fill="#3a0044"/>
+    <!-- Mid-right tower -->
+    <rect x="635" y="100" width="35" height="210" fill="#3a0044"/>
+  </g>
+
+  <!-- Energy conduits (vertical glowing lines) -->
+  <g filter="url(#bloom)">
+    <rect x="119" y="0" width="3" height="450" fill="url(#energyV)" opacity="0.5"/>
+    <rect x="239" y="0" width="3" height="450" fill="url(#energyV)" opacity="0.4"/>
+    <rect x="399" y="0" width="3" height="450" fill="url(#energyV)" opacity="0.6"/>
+    <rect x="559" y="0" width="3" height="450" fill="url(#energyV)" opacity="0.4"/>
+    <rect x="679" y="0" width="3" height="450" fill="url(#energyV)" opacity="0.5"/>
+  </g>
+
+  <!-- Mid-ground Neo Arcadia structure -->
+  <!-- Central fortress face -->
+  <rect x="280" y="160" width="240" height="290" fill="#2a0035"/>
+  <rect x="290" y="170" width="220" height="20" fill="#440055"/>
+  <!-- Window grid on central block -->
+  <g fill="#FF2244" opacity="0.3">
+    <rect x="310" y="210" width="20" height="14" rx="2"/>
+    <rect x="345" y="210" width="20" height="14" rx="2"/>
+    <rect x="380" y="210" width="20" height="14" rx="2"/>
+    <rect x="415" y="210" width="20" height="14" rx="2"/>
+    <rect x="450" y="210" width="20" height="14" rx="2"/>
+    <rect x="310" y="240" width="20" height="14" rx="2"/>
+    <rect x="345" y="240" width="20" height="14" rx="2"/>
+    <rect x="380" y="240" width="20" height="14" rx="2"/>
+    <rect x="415" y="240" width="20" height="14" rx="2"/>
+    <rect x="450" y="240" width="20" height="14" rx="2"/>
+    <rect x="310" y="270" width="20" height="14" rx="2"/>
+    <rect x="380" y="270" width="20" height="14" rx="2"/>
+    <rect x="450" y="270" width="20" height="14" rx="2"/>
+  </g>
+  <!-- Fortress gate / arch -->
+  <path d="M360 320 Q400 290 440 320 L440 400 L360 400 Z" fill="#1a0022"/>
+  <path d="M363 322 Q400 294 437 322 L437 398 L363 398 Z" fill="#150018"/>
+
+  <!-- Left main pillar -->
+  <rect x="90" y="200" width="90" height="250" fill="url(#pillar)"/>
+  <rect x="85" y="195" width="100" height="14" fill="#660066"/>
+  <!-- Left pillar glow strips -->
+  <rect x="108" y="200" width="4" height="250" fill="#FF2244" opacity="0.3" filter="url(#bloom)"/>
+  <rect x="155" y="200" width="4" height="250" fill="#FF2244" opacity="0.3" filter="url(#bloom)"/>
+  <!-- Left pillar tech pattern -->
+  <g fill="#440044" opacity="0.7">
+    <rect x="98" y="220" width="70" height="6" rx="2"/>
+    <rect x="98" y="250" width="70" height="6" rx="2"/>
+    <rect x="98" y="280" width="70" height="6" rx="2"/>
+    <rect x="98" y="310" width="70" height="6" rx="2"/>
+    <rect x="98" y="340" width="70" height="6" rx="2"/>
+    <rect x="98" y="370" width="70" height="6" rx="2"/>
+  </g>
+
+  <!-- Right main pillar -->
+  <rect x="620" y="200" width="90" height="250" fill="url(#pillar)"/>
+  <rect x="615" y="195" width="100" height="14" fill="#660066"/>
+  <rect x="638" y="200" width="4" height="250" fill="#FF2244" opacity="0.3" filter="url(#bloom)"/>
+  <rect x="685" y="200" width="4" height="250" fill="#FF2244" opacity="0.3" filter="url(#bloom)"/>
+  <g fill="#440044" opacity="0.7">
+    <rect x="628" y="220" width="70" height="6" rx="2"/>
+    <rect x="628" y="250" width="70" height="6" rx="2"/>
+    <rect x="628" y="280" width="70" height="6" rx="2"/>
+    <rect x="628" y="310" width="70" height="6" rx="2"/>
+    <rect x="628" y="340" width="70" height="6" rx="2"/>
+    <rect x="628" y="370" width="70" height="6" rx="2"/>
+  </g>
+
+  <!-- Ground glow effects -->
+  <ellipse cx="400" cy="445" rx="400" ry="30" fill="url(#glowRed)" opacity="0.4"/>
+  <ellipse cx="135" cy="445" rx="100" ry="20" fill="url(#glowGold)" opacity="0.3"/>
+  <ellipse cx="665" cy="445" rx="100" ry="20" fill="url(#glowGold)" opacity="0.3"/>
+
+  <!-- Ground floor -->
+  <rect x="0" y="390" width="800" height="60" fill="url(#ground)"/>
+  <!-- Ground edge highlight -->
+  <rect x="0" y="390" width="800" height="3" fill="#FF2244" opacity="0.7" filter="url(#bloom)"/>
+  <!-- Ground tile grid -->
+  <g stroke="#550055" stroke-width="0.5" opacity="0.4">
+    <line x1="80" y1="390" x2="80" y2="450"/>
+    <line x1="160" y1="390" x2="160" y2="450"/>
+    <line x1="240" y1="390" x2="240" y2="450"/>
+    <line x1="320" y1="390" x2="320" y2="450"/>
+    <line x1="400" y1="390" x2="400" y2="450"/>
+    <line x1="480" y1="390" x2="480" y2="450"/>
+    <line x1="560" y1="390" x2="560" y2="450"/>
+    <line x1="640" y1="390" x2="640" y2="450"/>
+    <line x1="720" y1="390" x2="720" y2="450"/>
+    <line x1="0" y1="420" x2="800" y2="420"/>
+  </g>
+
+  <!-- Neo Arcadia logo / crest (abstract) on fortress -->
+  <g transform="translate(400, 300)" opacity="0.5">
+    <circle cx="0" cy="0" r="28" fill="none" stroke="#FFB800" stroke-width="2"/>
+    <circle cx="0" cy="0" r="20" fill="none" stroke="#FF2244" stroke-width="1.5"/>
+    <line x1="-28" y1="0" x2="28" y2="0" stroke="#FFB800" stroke-width="1" opacity="0.5"/>
+    <line x1="0" y1="-28" x2="0" y2="28" stroke="#FFB800" stroke-width="1" opacity="0.5"/>
+    <circle cx="0" cy="0" r="5" fill="#FF2244"/>
+  </g>
+
+  <!-- Atmospheric haze / fog at bottom -->
+  <rect x="0" y="350" width="800" height="100" fill="#1a003a" opacity="0.25"/>
+</svg>

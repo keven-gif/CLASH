@@ -47,6 +47,28 @@ const FACTORY_FLOOR_PLATFORMS: Platform[] = [
   { x: 0, y: -80, width: 280, height: 56, isPassThrough: true },
 ];
 
+const NEO_ARCADIA_PLATFORMS: Platform[] = [
+  // Main lower platform (narrower — punishes edge play)
+  { x: 0, y: 320, width: 640, height: 80, isPassThrough: false },
+  // Left energy pillar top
+  { x: -380, y: 60, width: 200, height: 56, isPassThrough: true },
+  // Right energy pillar top
+  { x: 380, y: 60, width: 200, height: 56, isPassThrough: true },
+  // Center rising platform (moves up/down like energy lifts in Neo Arcadia)
+  {
+    x: 0,
+    y: 140,
+    width: 280,
+    height: 56,
+    isPassThrough: true,
+    velocity: { x: 0, y: 2.8 },
+    minX: 0,
+    maxX: 0,
+  },
+  // High center apex platform
+  { x: 0, y: -200, width: 200, height: 56, isPassThrough: true },
+];
+
 // ─── Spawn Points ────────────────────────────────────────────────────
 
 const BATTLEFIELD_SPAWNS = [
@@ -60,6 +82,11 @@ const FINAL_DESTINATION_SPAWNS = [
 ];
 
 const FACTORY_FLOOR_SPAWNS = [
+  { x: -200, y: 200 },
+  { x: 200, y: 200 },
+];
+
+const NEO_ARCADIA_SPAWNS = [
   { x: -200, y: 200 },
   { x: 200, y: 200 },
 ];
@@ -102,6 +129,12 @@ const STAGES: Record<string, StageData> = {
     platforms: FACTORY_FLOOR_PLATFORMS,
     blastZones: { ...DEFAULT_BLAST_ZONES },
     spawnPoints: FACTORY_FLOOR_SPAWNS,
+  },
+  'neo-arcadia': {
+    id: 'neo-arcadia',
+    platforms: NEO_ARCADIA_PLATFORMS,
+    blastZones: { ...DEFAULT_BLAST_ZONES },
+    spawnPoints: NEO_ARCADIA_SPAWNS,
   },
 };
 
@@ -154,6 +187,8 @@ export function getStageBackgroundColor(stageId: string): string {
       return '#0a0a15';
     case 'hazard':
       return '#1e1010';
+    case 'neo-arcadia':
+      return '#0d0010';
     default:
       return '#0a0a0f';
   }

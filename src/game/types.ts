@@ -186,6 +186,16 @@ export const CHARACTER_STATS: Record<string, CharacterStats> = {
     width: 56,
     height: 90,
   },
+  zero: {
+    speed: 5.5,
+    weight: 0.95,
+    jumpForce: 15,
+    doubleJumpForce: 12,
+    fallSpeed: 0.46,
+    runSpeed: 7,
+    width: 54,
+    height: 88,
+  },
 };
 
 // ─── Game Input ──────────────────────────────────────────────────────
