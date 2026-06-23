@@ -20,16 +20,17 @@ export default function SNESGame() {
   const scriptRef = useRef<HTMLScriptElement | null>(null);
 
   useEffect(() => {
+    const base = import.meta.env.BASE_URL;
     window.EJS_player = '#ejs-player';
-    window.EJS_gameUrl = '/game.sfc';
+    window.EJS_gameUrl = `${base}game.sfc`;
     window.EJS_core = 'snes9x';
-    window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+    window.EJS_pathtodata = `${base}emulatorjs/`;
     window.EJS_startOnLoaded = true;
     window.EJS_color = '#39FF14';
     window.EJS_backgroundColor = '#050507';
 
     const script = document.createElement('script');
-    script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
+    script.src = `${base}emulatorjs/loader.js`;
     document.body.appendChild(script);
     scriptRef.current = script;
 
