@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sword, Settings, HelpCircle, Globe, User, Trophy } from 'lucide-react';
+import { Settings, HelpCircle, Globe, User, Trophy, Play } from 'lucide-react';
 import { audioManager } from '@/audio/AudioManager';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -95,7 +95,7 @@ const LogoLetter = ({ letter, index }: { letter: string; index: number }) => (
     className="inline-block font-orbitron font-black text-[72px] leading-none tracking-logo"
     style={{
       color: '#F0F0F5',
-      textShadow: '0 0 40px rgba(0,229,212,0.25), 0 0 80px rgba(0,229,212,0.12)',
+      textShadow: '0 0 40px rgba(57,255,20,0.25), 0 0 80px rgba(57,255,20,0.12)',
     }}
   >
     {letter}
@@ -144,7 +144,8 @@ export default function TitleScreen() {
     [navigate],
   );
 
-  const logoLetters = ['C', 'L', 'A', 'S', 'H'];
+  const logoWord1 = ['T', 'H', 'E'];
+  const logoWord2 = ['C', 'U', 'P'];
 
   return (
     <div
@@ -214,20 +215,35 @@ export default function TitleScreen() {
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center w-full px-6">
         {/* Logo */}
-        <div className="flex items-center justify-center" style={{ marginTop: '-10vh' }}>
+        <div className="flex flex-col items-center justify-center" style={{ marginTop: '-10vh', gap: '0px' }}>
           <motion.div
             className="flex"
             animate={{
               textShadow: [
-                '0 0 40px rgba(0,229,212,0.4), 0 0 80px rgba(0,229,212,0.2)',
-                '0 0 40px rgba(0,229,212,0.7), 0 0 80px rgba(0,229,212,0.35)',
-                '0 0 40px rgba(0,229,212,0.4), 0 0 80px rgba(0,229,212,0.2)',
+                '0 0 40px rgba(57,255,20,0.4), 0 0 80px rgba(57,255,20,0.2)',
+                '0 0 40px rgba(57,255,20,0.7), 0 0 80px rgba(57,255,20,0.35)',
+                '0 0 40px rgba(57,255,20,0.4), 0 0 80px rgba(57,255,20,0.2)',
               ],
             }}
             transition={{ duration: 3, ease: 'easeInOut', repeat: Infinity }}
           >
-            {logoLetters.map((letter, i) => (
-              <LogoLetter key={i} letter={letter} index={i} />
+            {logoWord1.map((letter, i) => (
+              <LogoLetter key={`w1-${i}`} letter={letter} index={i} />
+            ))}
+          </motion.div>
+          <motion.div
+            className="flex"
+            animate={{
+              textShadow: [
+                '0 0 40px rgba(57,255,20,0.4), 0 0 80px rgba(57,255,20,0.2)',
+                '0 0 40px rgba(57,255,20,0.7), 0 0 80px rgba(57,255,20,0.35)',
+                '0 0 40px rgba(57,255,20,0.4), 0 0 80px rgba(57,255,20,0.2)',
+              ],
+            }}
+            transition={{ duration: 3, ease: 'easeInOut', repeat: Infinity, delay: 0.2 }}
+          >
+            {logoWord2.map((letter, i) => (
+              <LogoLetter key={`w2-${i}`} letter={letter} index={logoWord1.length + i} />
             ))}
           </motion.div>
         </div>
@@ -239,7 +255,7 @@ export default function TitleScreen() {
           animate="visible"
           className="font-rajdhani font-semibold text-[16px] uppercase tracking-subtitle text-text-muted mt-3"
         >
-          PLATFORM FIGHTER
+          SNES SOCCER CLASSIC
         </motion.p>
 
         {/* Spacer */}
@@ -273,7 +289,23 @@ export default function TitleScreen() {
               className="flex flex-col items-center w-full gap-3 mt-4"
               onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
             >
-              {/* ONLINE — Primary (purple) */}
+              {/* KICK OFF — Primary (green) */}
+              <motion.button
+                variants={buttonVariants}
+                whileHover={{ scale: 0.98 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handleNavigate('/game')}
+                className="relative w-full max-w-[342px] h-14 rounded-[14px] font-rajdhani font-semibold text-[18px] uppercase tracking-button text-bg-dark overflow-hidden active:opacity-80 transition-colors duration-instant"
+                style={{ backgroundColor: '#39FF14', boxShadow: '0 6px 24px rgba(57,255,20,0.35)' }}
+              >
+                <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-[14px] bg-black/20" />
+                <ShimmerSweep />
+                <span className="flex items-center justify-center gap-2">
+                  <Play size={18} fill="currentColor" /> KICK OFF
+                </span>
+              </motion.button>
+
+              {/* ONLINE — Secondary (purple) */}
               <motion.button
                 variants={buttonVariants}
                 whileHover={{ scale: 0.98 }}
@@ -289,34 +321,16 @@ export default function TitleScreen() {
                 </span>
               </motion.button>
 
-              {/* PLAY — Secondary */}
+              {/* LEADERBOARD — Secondary */}
               <motion.button
                 variants={buttonVariants}
                 whileHover={{ scale: 0.98 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => handleNavigate('/select')}
-                className="relative w-full max-w-[342px] h-14 rounded-[14px] font-rajdhani font-semibold text-[18px] uppercase tracking-button text-bg-dark bg-text-primary overflow-hidden active:bg-hp-full transition-colors duration-instant"
-                style={{ boxShadow: '0 6px 24px rgba(240,240,245,0.12)' }}
-              >
-                {/* Left accent bar */}
-                <div
-                  className="absolute left-0 top-0 bottom-0 w-1 rounded-l-[14px]"
-                  style={{ background: '#00E5D4' }}
-                />
-                <ShimmerSweep />
-                PLAY
-              </motion.button>
-
-              {/* CHARACTERS — Secondary */}
-              <motion.button
-                variants={buttonVariants}
-                whileHover={{ scale: 0.98 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleNavigate('/select')}
+                onClick={() => handleNavigate('/leaderboard')}
                 className="relative flex items-center justify-center gap-2 w-full max-w-[342px] h-12 rounded-xl font-rajdhani font-semibold text-[18px] uppercase tracking-button text-text-primary border-[1.5px] border-border-subtle bg-transparent active:border-border-active transition-colors duration-instant"
               >
-                <Sword size={20} strokeWidth={2} className="text-text-secondary" />
-                CHARACTERS
+                <Trophy size={20} strokeWidth={2} className="text-text-secondary" />
+                LEADERBOARD
               </motion.button>
 
               {/* SETTINGS — Secondary */}
